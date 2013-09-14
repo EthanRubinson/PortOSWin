@@ -57,6 +57,9 @@
     <ClCompile Include="test3.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="queue_test.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="defs.h">

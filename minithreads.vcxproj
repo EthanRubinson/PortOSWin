@@ -88,6 +88,7 @@
     <ClCompile Include="machineprimitives_x86.c" />
     <ClCompile Include="minithread.c" />
     <ClCompile Include="queue.c" />
+    <ClCompile Include="queue_test.c" />
     <ClCompile Include="random.c" />
     <ClCompile Include="sieve.c" />
     <ClCompile Include="start.c" />
