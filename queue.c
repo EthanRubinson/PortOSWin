@@ -145,8 +145,7 @@ int queue_iterate(queue_t queue, PFany f, void* item) {
 
 	while(curr != NULL) {
 		/*
-		 *Assumes function f returns -1 on a failure, in which case iterate should also fail
-		 *TODO: Ensure this is a propper assumption
+		 *If function f returns -1, indicate a failure
 		 */
 		if (f(item, curr->data) == -1) {
 			return -1;
