@@ -167,7 +167,7 @@ int queue_free (queue_t queue) {
 
 	curr = queue->head->next;
 	/*Remove all elements from the queue until size is 0 (dequeue return -1)*/
-	while(curr != null){
+	while(curr != NULL){
 		free(curr->prev);
 		curr = curr->next;
 	}
