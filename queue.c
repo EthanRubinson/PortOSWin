@@ -83,7 +83,7 @@ int queue_append(queue_t queue, void* item) {
 	node->prev = queue->tail;
 
 	/*queue is empty*/
-	if (queue->tail = NULL) {
+	if (queue->tail == NULL) {
 		queue->head = node;
 	}
 	/*queue is not empty*/
