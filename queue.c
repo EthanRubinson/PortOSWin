@@ -159,14 +159,19 @@ int queue_iterate(queue_t queue, PFany f, void* item) {
  * Free the queue and return 0 (success) or -1 (failure).
  */
 int queue_free (queue_t queue) {
-	void** item = NULL;
+	struct list_node* curr;
 
 	if(queue == NULL){
 		return -1;
 	}
 
+	curr = queue->head->next;
 	/*Remove all elements from the queue until size is 0 (dequeue return -1)*/
-	while(queue_dequeue(queue, item) != -1) {}
+	while(curr != null){
+		free(curr->prev);
+		curr = curr->next;
+	}
+	free(queue->tail);
 
 	free(queue);
 	return 0;
