@@ -23,35 +23,95 @@
  * that you feel they must have.
  */
 
+/*
+ * Minithread struct. Contains the stack base and the stack top along with the
+ * unique id of the thread.
+ */
+struct minithread {
+	stack_pointer_t stackbase;
+	stack_pointer_t stacktop;
+	int id;
+};
 
-/* minithread functions */
+/*The currently executing thread*/
+minithread_t current_thread;
 
-minithread_t
-minithread_fork(proc_t proc, arg_t arg) {
+/*The idle thread (Used for cleanup / Never terminated)*/
+minithread_t idle_thread;
+
+/*Unique thread id generator. Assigned and incremented each time a new thread is spawned*/
+int thread_id_counter = 0;
+
+
+/*
+ *-----------------------
+ * minithread functions
+ * ----------------------
+ */
+
+
+/*The final procedure a minithreads executes on termination
+ * TODO: What is the propper arguements/return type of this function?
+ */
+int final_proc(arg_t final_args){
+	//TODO: Figure out what to do in this final procedure
+	//Use Idle thread to terminiate the *current thread*
+	return 0;
 }
 
-minithread_t
-minithread_create(proc_t proc, arg_t arg) {
+/*Returns a new 'unique' (thread_id >= 0) on Sucess, (-1) on Failure*/
+int new_thread_id(){
+	int temp;
+	if(thread_id_counter <= INT_MAX){
+		temp = thread_id_counter;
+		thread_id_counter++;
+		return temp;
+	}
+	else{
+		printf("ERROR: Cannot assign new thread id");
+		return -1;
+	}
 }
 
-minithread_t
-minithread_self() {
+minithread_t minithread_fork(proc_t proc, arg_t arg) {
+	//TODO: IMPLEMENT
 }
 
-int
-minithread_id() {
+minithread_t minithread_create(proc_t proc, arg_t arg) {
+	minithread_t new_thread = (minithread_t) malloc(sizeof(struct minithread));
+
+	if(new_thread == NULL){
+		printf("ERROR: Memmory allocation for new thread failed");
+		return NULL;
+	}
+
+	minithread_allocate_stack(&new_thread->stackbase,&new_thread->stacktop);
+	new_thread->id = new_thread_id();
+	minithread_initialize_stack(&new_thread->stacktop, proc, arg, (proc_t)final_proc, NULL);
+	return new_thread;
 }
 
-void
-minithread_stop() {
+minithread_t minithread_self() {
+	//TODO: IMPLEMENT
 }
 
-void
-minithread_start(minithread_t t) {
+int minithread_id() {
+	if(current_thread != NULL){
+		return current_thread->id;
+	}
+	return -1;
 }
 
-void
-minithread_yield() {
+void minithread_stop() {
+	//TODO: IMPLEMENT
+}
+
+void minithread_start(minithread_t t) {
+	//TODO: IMPLEMENT
+}
+
+void minithread_yield() {
+	//TODO: IMPLEMENT
 }
 
 /*
@@ -68,8 +128,8 @@ minithread_yield() {
  * 	 Start scheduling.
  *
  */
-void
-minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
+void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
+	//TODO: IMPLEMENT
 }
 
 
