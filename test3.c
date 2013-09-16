@@ -1,7 +1,7 @@
 /* test3.c
 
    Ping-pong between threads using semaphores.
-*/
+
 
 #include "minithread.h"
 #include "synch.h"
@@ -44,3 +44,4 @@ main() {
   semaphore_initialize(sem2, 0);
   minithread_system_initialize(thread1, NULL);
 }
+*/

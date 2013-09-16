@@ -65,6 +65,8 @@
     <NMakeCleanCommandLine>nmake clean</NMakeCleanCommandLine>
     <NMakeReBuildCommandLine>nmake /a</NMakeReBuildCommandLine>
     <NMakePreprocessorDefinitions>WIN32;_DEBUG;$(NMakePreprocessorDefinitions)</NMakePreprocessorDefinitions>
+    <LibraryPath>C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64;$(LibraryPath)</LibraryPath>
+    <NMakeOutput>$(ComSpec)</NMakeOutput>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <NMakeBuildCommandLine>nmake</NMakeBuildCommandLine>
