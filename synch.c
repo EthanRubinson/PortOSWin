@@ -16,10 +16,8 @@
  * Semaphores.
  */
 struct semaphore {
-    /* This is temporary so that the compiler does not error on an empty struct.
-     * You should replace this with your own struct members.
-     */
-    int tmp;
+	int current;
+    int limit;
 };
 
 
@@ -28,6 +26,8 @@ struct semaphore {
  *	Allocate a new semaphore.
  */
 semaphore_t semaphore_create() {
+	semaphore_t sem = (semaphore_t) malloc(sizeof(semaphore));
+	return sem;
 }
 
 /*
@@ -35,6 +35,7 @@ semaphore_t semaphore_create() {
  *	Deallocate a semaphore.
  */
 void semaphore_destroy(semaphore_t sem) {
+	free(sem);
 }
 
  
@@ -44,6 +45,8 @@ void semaphore_destroy(semaphore_t sem) {
  *	sem with an initial value cnt.
  */
 void semaphore_initialize(semaphore_t sem, int cnt) {
+	sem->current = 0;
+	sem->limit = cnt;
 }
 
 
@@ -52,6 +55,9 @@ void semaphore_initialize(semaphore_t sem, int cnt) {
  *	P on the sempahore.
  */
 void semaphore_P(semaphore_t sem) {
+	// acquire mutex
+	sem->current--;
+	// release mutex
 }
 
 /*
@@ -59,4 +65,14 @@ void semaphore_P(semaphore_t sem) {
  *	V on the sempahore.
  */
 void semaphore_V(semaphore_t sem) {
+	// acquire mutex
+	if (sem->current < sem->limit) {
+		sem->current++;
+		// release mutex
+	} else {
+		// release mutex
+		// add to wait queue or
+		// busy wait
+
+	}
 }
