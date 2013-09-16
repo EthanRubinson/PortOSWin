@@ -83,7 +83,7 @@ int queue_append(queue_t queue, void* item) {
 	node->prev = queue->tail;
 
 	/*queue is empty*/
-	if (queue->tail = NULL) {
+	if (queue->tail == NULL) {
 		queue->head = node;
 	}
 	/*queue is not empty*/
@@ -145,8 +145,7 @@ int queue_iterate(queue_t queue, PFany f, void* item) {
 
 	while(curr != NULL) {
 		/*
-		 *Assumes function f returns -1 on a failure, in which case iterate should also fail
-		 *TODO: Ensure this is a propper assumption
+		 *If function f returns -1, indicate a failure
 		 */
 		if (f(item, curr->data) == -1) {
 			return -1;
@@ -160,14 +159,19 @@ int queue_iterate(queue_t queue, PFany f, void* item) {
  * Free the queue and return 0 (success) or -1 (failure).
  */
 int queue_free (queue_t queue) {
-	void** item = NULL;
+	struct list_node* curr;
 
 	if(queue == NULL){
 		return -1;
 	}
 
+	curr = queue->head->next;
 	/*Remove all elements from the queue until size is 0 (dequeue return -1)*/
-	while(queue_dequeue(queue, item) != -1) {}
+	while(curr != null){
+		free(curr->prev);
+		curr = curr->next;
+	}
+	free(queue->tail);
 
 	free(queue);
 	return 0;
