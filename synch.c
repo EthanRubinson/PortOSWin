@@ -17,7 +17,7 @@
  */
 struct semaphore {
     int limit;
-	int mutex;
+	tas_lock_t mutex;
 };
 
 
@@ -46,29 +46,42 @@ void semaphore_destroy(semaphore_t sem) {
  */
 void semaphore_initialize(semaphore_t sem, int cnt) {
 	sem->limit = cnt;
+	sem->mutex = 0;
 }
 
 
 /*
  * semaphore_P(semaphore_t sem)
- *	Signal on the semaphore.
+ *	Wait on the semaphore.
  */
 void semaphore_P(semaphore_t sem) {
-	// acquire mutex
-	if (sem->limit >= 0) {
-		sem->limit--;
-	} else {
-		// append this process to queue
+	while(1) {
+		if (!atomic_test_and_set(&(sem->mutex))) {
+			if (sem->limit >= 0) {
+				sem->limit--;
+				sem->mutex = 0;
+				break;
+			} else {
+				minithread_yield();
+			}
+			sem->mutex = 0;
+		}
+		minithread_yield();
 	}
-	// release mutex
 }
 
 /*
  * semaphore_V(semaphore_t sem)
- *	Wait on the semaphore.
+ *	Signal on the semaphore.
  */
 void semaphore_V(semaphore_t sem) {
-	sem->limit++;
-	// if (queue contains processes)
-	// wake up a process
+	while(1) {
+		if (!atomic_test_and_set(&(sem->mutex))) {
+			sem->limit++;
+			sem->mutex = 0;
+			break;
+		}
+		minithread_yield();
+	}
+	minithread_yield();
 }
