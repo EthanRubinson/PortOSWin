@@ -16,8 +16,8 @@
  * Semaphores.
  */
 struct semaphore {
-	int current;
     int limit;
+	int mutex;
 };
 
 
@@ -26,7 +26,7 @@ struct semaphore {
  *	Allocate a new semaphore.
  */
 semaphore_t semaphore_create() {
-	semaphore_t sem = (semaphore_t) malloc(sizeof(semaphore));
+	semaphore_t sem = (semaphore_t) malloc(sizeof(struct semaphore));
 	return sem;
 }
 
@@ -45,34 +45,30 @@ void semaphore_destroy(semaphore_t sem) {
  *	sem with an initial value cnt.
  */
 void semaphore_initialize(semaphore_t sem, int cnt) {
-	sem->current = 0;
 	sem->limit = cnt;
 }
 
 
 /*
  * semaphore_P(semaphore_t sem)
- *	P on the sempahore.
+ *	Signal on the semaphore.
  */
 void semaphore_P(semaphore_t sem) {
 	// acquire mutex
-	sem->current--;
+	if (sem->limit >= 0) {
+		sem->limit--;
+	} else {
+		// append this process to queue
+	}
 	// release mutex
 }
 
 /*
  * semaphore_V(semaphore_t sem)
- *	V on the sempahore.
+ *	Wait on the semaphore.
  */
 void semaphore_V(semaphore_t sem) {
-	// acquire mutex
-	if (sem->current < sem->limit) {
-		sem->current++;
-		// release mutex
-	} else {
-		// release mutex
-		// add to wait queue or
-		// busy wait
-
-	}
+	sem->limit++;
+	// if (queue contains processes)
+	// wake up a process
 }
