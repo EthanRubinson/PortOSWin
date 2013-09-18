@@ -1,3 +1,15 @@
+/* Things to ask at office hours:
+	- How to implement yield/stop/etc
+	- How should the semaphore append and dequeue threads
+	- What to set the current_thread to during initialization
+	- Create or fork the idle thread
+	- What is the final_proc do
+	- How to context switch
+	- Assumption that there is only one instance of minithread.c so referencing the
+	queue does not need to be threadsafe
+*/
+
+
 /*
  * minithread.c:
  *	This file provides a few function headers for the procedures that
@@ -42,7 +54,7 @@ minithread_t idle_thread;
 /*Unique thread id generator. Assigned and incremented each time a new thread is spawned*/
 int thread_id_counter;
 
-/*Queue ds representing the runnable_threads*/
+/*Queue ds representing the currently runnable threads*/
 queue_t runnable_queue;
 
 
@@ -62,7 +74,7 @@ int final_proc(arg_t final_args){
 	return 0;
 }
 
-int idle_proc(arg_t idle_args){
+int idle_thread_proc(arg_t idle_args){
 	/*Never terminate, constantly yielding allowing any new threads to be run*/
 	while(1){
 		minithread_yield();
@@ -159,7 +171,12 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	//TODO: IMPLEMENT FULLY
 	thread_id_counter = 0;
 	runnable_queue = queue_new();
-	idle_thread = minithread_create((proc_t)idle_proc, NULL);
+	current_thread = NULL;
+
+	idle_thread = minithread_create((proc_t)idle_thread_proc, NULL);
+	minithread_fork(mainproc, mainarg);
+
+	//Start the scheduler
 
 	//?......
 }
