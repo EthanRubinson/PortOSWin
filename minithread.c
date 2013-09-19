@@ -152,10 +152,13 @@ void minithread_yield() {
 	}
 
 	//There are runnable threads
-	else{
-		queue_dequeue(runnable_queue,(void**) &current_thread);
-		minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
+	if(current_thread != idle_thread){
+		queue_append(runnable_queue,previous_thread);
 	}
+
+	queue_dequeue(runnable_queue,(void**) &current_thread);
+	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
+	
 }
 
 /*
