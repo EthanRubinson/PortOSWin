@@ -7,6 +7,7 @@
 	- How to context switch
 	- Assumption that there is only one instance of minithread.c so referencing the
 	queue does not need to be threadsafe
+	- Do we need to atomically increment and decrement the value for the semaphores
 */
 
 
@@ -80,6 +81,7 @@ int idle_thread_proc(arg_t idle_args){
 		minithread_yield();
 	}
 
+	//This statement should never be reached
 	return 0;
 }
 
@@ -149,8 +151,24 @@ void minithread_start(minithread_t t) {
 	}	
 }
 
-void minithread_yield() {
+void minithread_yield() {	
 	//Volentarily give up the CPU & let another thread from the runnable queue run
+
+	minithread_t previous_thread = current_thread;
+	
+	//Get one off the runnable queue
+	int length = queue_length(runnable_queue);
+
+	//There are no threads to context switch to just return
+	if(length == 0) {
+		return;
+	}
+
+	//There are runnable threads
+	else{
+		queue_dequeue(runnable_queue,(void**) &current_thread);
+		minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
+	}
 }
 
 /*
@@ -168,17 +186,19 @@ void minithread_yield() {
  *
  */
 void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
-	//TODO: IMPLEMENT FULLY
-	thread_id_counter = 0;
 	runnable_queue = queue_new();
-	current_thread = NULL;
 
-	idle_thread = minithread_create((proc_t)idle_thread_proc, NULL);
+	//Allocate space for the idle thread store the sp of the main thread
+	idle_thread = (minithread_t) malloc(sizeof(struct minithread));
+	thread_id_counter = 0;
+	idle_thread->id = thread_id_counter;
+	
+	thread_id_counter++;
+
+	current_thread = idle_thread;
 	minithread_fork(mainproc, mainarg);
 
-	//Start the scheduler
-
-	//?......
+	idle_thread_proc(NULL);
 }
 
 
