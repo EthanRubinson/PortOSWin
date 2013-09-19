@@ -18,6 +18,7 @@
 struct semaphore {
     int limit;
 	tas_lock_t mutex;
+	queue_t waiting;
 };
 
 
@@ -35,6 +36,7 @@ semaphore_t semaphore_create() {
  *	Deallocate a semaphore.
  */
 void semaphore_destroy(semaphore_t sem) {
+	queue_free(sem->waiting);
 	free(sem);
 }
 
@@ -47,6 +49,7 @@ void semaphore_destroy(semaphore_t sem) {
 void semaphore_initialize(semaphore_t sem, int cnt) {
 	sem->limit = cnt;
 	sem->mutex = 0;
+	sem->waiting = queue_new();
 }
 
 
@@ -55,33 +58,24 @@ void semaphore_initialize(semaphore_t sem, int cnt) {
  *	Wait on the semaphore.
  */
 void semaphore_P(semaphore_t sem) {
-	while(1) {
-		if (!atomic_test_and_set(&(sem->mutex))) {
-			if (sem->limit >= 0) {
-				sem->limit--;
-				sem->mutex = 0;
-				break;
-			} else {
-				minithread_yield();
-			}
-			sem->mutex = 0;
-		}
+	while(atomic_test_and_set(&(sem->mutex)));
+	if (--sem->limit < 0) {
+		queue_append(sem->waiting, minithread_self());
+		sem->mutex = 0;
 		minithread_yield();
+		// deschedule this thread;
+	} else {
+		sem->mutex = 0;
 	}
 }
-
 /*
  * semaphore_V(semaphore_t sem)
  *	Signal on the semaphore.
  */
 void semaphore_V(semaphore_t sem) {
-	while(1) {
-		if (!atomic_test_and_set(&(sem->mutex))) {
-			sem->limit++;
-			sem->mutex = 0;
-			break;
-		}
-		minithread_yield();
+	while(atomic_test_and_set(&(sem->mutex)));
+	if(++sem->limit <= 0) {
+		// dequeue from wait queue
 	}
-	minithread_yield();
+	sem->mutex = 0;
 }
