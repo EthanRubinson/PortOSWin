@@ -45,6 +45,9 @@ int thread_id_counter;
 /*Queue ds representing the currently runnable threads*/
 queue_t runnable_queue;
 
+/*Queue ds representing the threads that need to be cleaned up*/
+queue_t cleanup_queue;
+
 
 /*
  *-----------------------
@@ -57,14 +60,23 @@ queue_t runnable_queue;
  * TODO: What is the propper arguements/return type of this function?
  */
 int final_proc(arg_t final_args){
-	//TODO: Figure out what to do in this final procedure
-	//Use Idle thread to terminiate the *current thread*
+	queue_append(cleanup_queue, minithread_self());
+	minithread_stop();
 	return 0;
 }
 
 int idle_thread_proc(arg_t idle_args){
 	/*Never terminate, constantly yielding allowing any new threads to be run*/
 	while(1){
+		int length = queue_length(cleanup_queue);
+
+		while(queue_length(cleanup_queue) > 0) {
+			minithread_t temp;
+			queue_dequeue(cleanup_queue,(void**) &temp);
+
+			minithread_free_stack(temp->stackbase);
+		}
+
 		minithread_yield();
 	}
 
@@ -126,7 +138,20 @@ int minithread_id() {
 }
 
 void minithread_stop() {
-	//TODO: IMPLEMENT
+	minithread_t previous_thread = current_thread;
+	
+	//Get the number of threads waiting to run
+	int length = queue_length(runnable_queue);
+
+	//There are no threads to context switch to so switch to the idle thread
+	if(length == 0) {
+		current_thread = idle_thread;
+	}
+	else{
+		queue_dequeue(runnable_queue,(void**) &current_thread);	
+	}
+	
+	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 }
 
 void minithread_start(minithread_t t) {
