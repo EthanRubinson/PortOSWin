@@ -1,16 +1,3 @@
-/* Things to ask at office hours:
-	- How to implement yield/stop/etc
-	- How should the semaphore append and dequeue threads
-	- What to set the current_thread to during initialization
-	- Create or fork the idle thread
-	- What is the final_proc do
-	- How to context switch
-	- Assumption that there is only one instance of minithread.c so referencing the
-	queue does not need to be threadsafe
-	- Do we need to atomically increment and decrement the value for the semaphores
-*/
-
-
 /*
  * minithread.c:
  *	This file provides a few function headers for the procedures that
