@@ -1,3 +1,4 @@
+//Make sure vacate does not go above original count
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

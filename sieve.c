@@ -111,6 +111,7 @@ int sink(int* arg) {
 }
 
 void
+	
 main(void) {
   minithread_system_initialize(sink, NULL);
 }

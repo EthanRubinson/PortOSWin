@@ -1,6 +1,6 @@
-/* test2.c
+/*test2.c
 
-   Spawn a three threads.
+   Spawn a three threads.*/
 
 
 #include "minithread.h"
@@ -35,4 +35,3 @@ int thread1(int* arg) {
 main() {
   minithread_system_initialize(thread1, NULL);
 }
-*/

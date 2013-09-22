@@ -60,21 +60,25 @@ queue_t cleanup_queue;
  * TODO: What is the propper arguements/return type of this function?
  */
 int final_proc(arg_t final_args){
+	printf("Executing the final procdure for thread id: %d\n",minithread_self()->id);
 	queue_append(cleanup_queue, minithread_self());
 	minithread_stop();
 	return 0;
 }
 
 int idle_thread_proc(arg_t idle_args){
+	int thread_id;
 	/*Never terminate, constantly yielding allowing any new threads to be run*/
 	while(1){
-		int length = queue_length(cleanup_queue);
-
+			
 		while(queue_length(cleanup_queue) > 0) {
 			minithread_t temp;
+			
 			queue_dequeue(cleanup_queue,(void**) &temp);
-
+			thread_id = temp->id;
+			printf("Freeing thread ID: %d\n",thread_id);
 			minithread_free_stack(temp->stackbase);
+			printf("Freed up thread ID: %d\n",thread_id);
 		}
 
 		minithread_yield();
@@ -145,9 +149,11 @@ void minithread_stop() {
 
 	//There are no threads to context switch to so switch to the idle thread
 	if(length == 0) {
+		printf("[MINITHREAD_STOP] Switching to the idle thread");
 		current_thread = idle_thread;
 	}
 	else{
+		printf("[MINITHREAD_STOP] Switching to a runnable thread");
 		queue_dequeue(runnable_queue,(void**) &current_thread);	
 	}
 	
@@ -164,15 +170,17 @@ void minithread_start(minithread_t t) {
 }
 
 void minithread_yield() {	
+	
 	//Volentarily give up the CPU & let another thread from the runnable queue run
 
 	minithread_t previous_thread = current_thread;
 	
 	//Get one off the runnable queue
 	int length = queue_length(runnable_queue);
-
+	printf("Begin yield\n");
 	//There are no threads to context switch to just return
 	if(length == 0) {
+		printf("End yield\n");
 		return;
 	}
 
@@ -182,6 +190,7 @@ void minithread_yield() {
 	}
 
 	queue_dequeue(runnable_queue,(void**) &current_thread);
+	printf("End yield\n");
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 	
 }
@@ -202,7 +211,7 @@ void minithread_yield() {
  */
 void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	runnable_queue = queue_new();
-
+	cleanup_queue = queue_new();
 	//Allocate space for the idle thread store the sp of the main thread
 	idle_thread = (minithread_t) malloc(sizeof(struct minithread));
 	thread_id_counter = 0;
