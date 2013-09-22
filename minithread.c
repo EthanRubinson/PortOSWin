@@ -30,6 +30,7 @@
 struct minithread {
 	stack_pointer_t stackbase;
 	stack_pointer_t stacktop;
+	queue_t parent_queue;
 	int id;
 };
 
@@ -97,7 +98,7 @@ int new_thread_id(){
 		return temp;
 	}
 	else{
-		printf("ERROR: Cannot assign new thread id");
+		printf("ERROR: Cannot assign new thread id\n");
 		return -1;
 	}
 }
@@ -106,7 +107,7 @@ minithread_t minithread_fork(proc_t proc, arg_t arg) {
 	minithread_t new_thread = minithread_create(proc,arg);
 
 	if(new_thread == NULL) {
-		printf("ERROR: Could not start thread. [thread is null]");
+		printf("ERROR: Could not start thread. [thread is null]\n");
 		return NULL;
 	}
 
@@ -120,12 +121,13 @@ minithread_t minithread_create(proc_t proc, arg_t arg) {
 	minithread_t new_thread = (minithread_t) malloc(sizeof(struct minithread));
 
 	if(new_thread == NULL){
-		printf("ERROR: Memmory allocation for new thread failed");
+		printf("ERROR: Memmory allocation for new thread failed\n");
 		return NULL;
 	}
 
 	minithread_allocate_stack(&new_thread->stackbase,&new_thread->stacktop);
 	new_thread->id = new_thread_id();
+	new_thread->parent_queue = runnable_queue;
 	minithread_initialize_stack(&new_thread->stacktop, proc, arg, (proc_t)final_proc, NULL);
 	return new_thread;
 }
@@ -149,11 +151,11 @@ void minithread_stop() {
 
 	//There are no threads to context switch to so switch to the idle thread
 	if(length == 0) {
-		printf("[MINITHREAD_STOP] Switching to the idle thread");
+		printf("[MINITHREAD_STOP] Switching to the idle thread\n");
 		current_thread = idle_thread;
 	}
 	else{
-		printf("[MINITHREAD_STOP] Switching to a runnable thread");
+		printf("[MINITHREAD_STOP] Switching to a runnable thread\n");
 		queue_dequeue(runnable_queue,(void**) &current_thread);	
 	}
 	
@@ -165,7 +167,7 @@ void minithread_start(minithread_t t) {
 		queue_append(runnable_queue, t);
 	}
 	else{
-		printf("ERROR: Could not start thread. [thread is null]");
+		printf("ERROR: Could not start thread. [thread is null]\n");
 	}	
 }
 
@@ -177,10 +179,10 @@ void minithread_yield() {
 	
 	//Get one off the runnable queue
 	int length = queue_length(runnable_queue);
-	printf("Begin yield\n");
+	
 	//There are no threads to context switch to just return
 	if(length == 0) {
-		printf("End yield\n");
+		
 		return;
 	}
 
@@ -190,7 +192,7 @@ void minithread_yield() {
 	}
 
 	queue_dequeue(runnable_queue,(void**) &current_thread);
-	printf("End yield\n");
+
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 	
 }
