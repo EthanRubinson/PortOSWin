@@ -63,8 +63,7 @@ void semaphore_P(semaphore_t sem) {
 	if (--sem->limit < 0) {
 		queue_append(sem->waiting, minithread_self());
 		sem->mutex = 0;
-		minithread_yield();
-		// deschedule this thread;
+		minithread_stop();
 	} else {
 		sem->mutex = 0;
 	}
@@ -74,9 +73,11 @@ void semaphore_P(semaphore_t sem) {
  *	Signal on the semaphore.
  */
 void semaphore_V(semaphore_t sem) {
+	void** thread = NULL;
 	while(atomic_test_and_set(&(sem->mutex)));
 	if(++sem->limit <= 0) {
-		// dequeue from wait queue
+		queue_dequeue(sem->waiting, thread);
+		minithread_start((minithread_t) thread);			 
 	}
 	sem->mutex = 0;
 }
