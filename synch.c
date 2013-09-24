@@ -73,10 +73,11 @@ void semaphore_P(semaphore_t sem) {
  *	Signal on the semaphore.
  */
 void semaphore_V(semaphore_t sem) {
-	void** thread = NULL;
+	minithread_t thread;
 	while(atomic_test_and_set(&(sem->mutex)));
+	
 	if(++sem->limit <= 0) {
-		queue_dequeue(sem->waiting, thread);
+		queue_dequeue(sem->waiting,(void**) &thread);
 		minithread_start((minithread_t) thread);			 
 	}
 	sem->mutex = 0;
