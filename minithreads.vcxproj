@@ -92,6 +92,7 @@
     <ClCompile Include="queue.c" />
     <ClCompile Include="queue_test.c" />
     <ClCompile Include="random.c" />
+    <ClCompile Include="retailTest.c" />
     <ClCompile Include="sieve.c" />
     <ClCompile Include="start.c" />
     <ClCompile Include="synch.c" />
