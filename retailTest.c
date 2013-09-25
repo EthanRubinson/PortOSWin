@@ -4,14 +4,20 @@
 #include "synch.h"
 #include "queue.h"
 
-#define N 5
-#define M 5
+#define N 20
+#define M 1000
 
 semaphore_t empty;
 semaphore_t full;
 semaphore_t mutex;
 
 queue_t phone_queue;
+
+
+struct phone {
+	int serial;
+};
+typedef struct phone* phone_t;
 
 int serialCounter = 0;
 
@@ -22,32 +28,35 @@ int getNextSerial(){
 }
 
 int consumer(int* arg) {
-	int *phone_id;
+	
+	phone_t got_phone;
+	
 	semaphore_P(full);
 	semaphore_P(mutex);
-	queue_dequeue(phone_queue, (void **) &phone_id);
-	printf("Got phone with serial %d \n",*phone_id);
+
+	queue_dequeue(phone_queue, (void **) &got_phone);
+	
+	printf("Got phone with serial %d \n",got_phone->serial);
+
+	free(got_phone);
 	semaphore_V(mutex);
 	semaphore_V(empty);
+
+	
 }
 
 int producer(int* arg) {
-	int phone_id;
+	phone_t new_Phone;
 	while(1) {
-		printf("a");
 		semaphore_P(empty);
-		printf("b");
 		semaphore_P(mutex);
-
-		printf("Starting to unpack\n");
-		phone_id = getNextSerial();
-		queue_append(phone_queue, &phone_id);
-		printf("Unpacked a phone with serial %d \n",phone_id);
-
+		new_Phone = (phone_t) malloc(sizeof(struct phone));
+		new_Phone->serial = getNextSerial();
+		queue_append(phone_queue, new_Phone);
+		printf("Unpacked a phone with serial %d \n", new_Phone->serial);
 		semaphore_V(mutex);
-		printf("c");
 		semaphore_V(full);
-		printf("d");
+		minithread_yield();
 	}
 }
 
@@ -59,11 +68,11 @@ int beginScenario(int* arg) {
   full = semaphore_create();
   mutex = semaphore_create();
   
-  semaphore_initialize(empty, 15);
+  semaphore_initialize(empty, INT_MAX);
   semaphore_initialize(full, 0);
   semaphore_initialize(mutex, 1);
   
-
+  phone_queue = queue_new();
 
   for(employeeCounter = 0; employeeCounter < N; employeeCounter++){
 	minithread_fork(producer, NULL);
