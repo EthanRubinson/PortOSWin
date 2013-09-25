@@ -11,9 +11,7 @@ int add(void* data1, void* data2) {
 }
 
 main() {
-	printf("lol \n");
 	queue_t q = queue_new();
-
 	int a = 1, b = 2, c = 3, d = 4, e = 5;
 	int result = 0;
 	void** data;
