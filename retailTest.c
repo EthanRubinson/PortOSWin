@@ -4,31 +4,43 @@
 #include "synch.h"
 #include "queue.h"
 
+/*= number of employees continuously unpacking phones*/
 #define N 20
+
+/*= number of customers that want phones*/
 #define M 1000
 
+/*Semaphore for blocking employees when 'enough' phones have been unpacked*/
 semaphore_t empty;
+
+/*Semaphore for the phone queue*/
 semaphore_t full;
+
+/*A mutex lock*/
 semaphore_t mutex;
 
+/*= Queue containing the currently unpacked and available phones*/
 queue_t phone_queue;
 
-
+/*= the phone structure where each phone contains a unique serial*/
 struct phone {
 	int serial;
 };
 typedef struct phone* phone_t;
 
+/*= Unique serial counter. Used to generate unique serials whenever a new phone is unpacked*/
 int serialCounter = 0;
 
+
+/*= The next unique serial number*/
 int getNextSerial(){
 	int id = serialCounter;
 	serialCounter++;
 	return id;
 }
 
+/*The consumer thread. Retrieve a phone when available and immediately print out its serial*/
 int consumer(int* arg) {
-	
 	phone_t got_phone;
 	
 	semaphore_P(full);
@@ -41,10 +53,9 @@ int consumer(int* arg) {
 	free(got_phone);
 	semaphore_V(mutex);
 	semaphore_V(empty);
-
-	
 }
 
+/*The employee thread. Continously unpack phones in sequential order*/
 int producer(int* arg) {
 	phone_t new_Phone;
 	while(1) {
@@ -60,6 +71,7 @@ int producer(int* arg) {
 	}
 }
 
+/*Initialze the retail scenario*/
 int beginScenario(int* arg) {
   int employeeCounter;
   int customerCounter;
@@ -68,7 +80,9 @@ int beginScenario(int* arg) {
   full = semaphore_create();
   mutex = semaphore_create();
   
-  semaphore_initialize(empty, INT_MAX);
+  //Initialize the semaphores.
+  //'M' designates that the maximum phones that can be unpacked at a time is the same as the number of customers.
+  semaphore_initialize(empty, M);
   semaphore_initialize(full, 0);
   semaphore_initialize(mutex, 1);
   
