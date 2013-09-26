@@ -1,4 +1,3 @@
-//Make sure vacate does not go above original count
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,12 +8,10 @@
 #include "minithread.h"
 
 /*
- *	You must implement the procedures and types defined in this interface.
- */
-
-
-/*
- * Semaphores.
+ * Semaphores:
+ * limit -> Max threads that can consume a resource at the same time
+ * mutex -> Lock
+ * waiting -> Queue containing all currently blocked threads
  */
 struct semaphore {
     int limit;
@@ -22,41 +19,44 @@ struct semaphore {
 	queue_t waiting;
 };
 
-
 /*
- * semaphore_t semaphore_create()
- *	Allocate a new semaphore.
+ *	Create a new semaphore.
  */
 semaphore_t semaphore_create() {
 	semaphore_t sem = (semaphore_t) malloc(sizeof(struct semaphore));
+
+	if(sem == NULL){
+		printf("[ERROR] Could not create semaphore (Memory allocation failed)\n");
+		return NULL;
+	}
+
 	return sem;
 }
 
 /*
- * semaphore_destroy(semaphore_t sem);
- *	Deallocate a semaphore.
+ *	Deallocate/Delete a semaphore.
  */
 void semaphore_destroy(semaphore_t sem) {
 	queue_free(sem->waiting);
 	free(sem);
 }
 
- 
 /*
- * semaphore_initialize(semaphore_t sem, int cnt)
- *	initialize the semaphore data structure pointed at by
+ *	Initialize the semaphore data structure pointed at by
  *	sem with an initial value cnt.
  */
 void semaphore_initialize(semaphore_t sem, int cnt) {
 	sem->limit = cnt;
 	sem->mutex = 0;
 	sem->waiting = queue_new();
+	
+	if(sem->waiting == NULL){
+		printf("[ERROR] Could not initialize semaphore (Internal structure initialization failed)\n");
+	}
 }
 
-
 /*
- * semaphore_P(semaphore_t sem)
- *	Wait on the semaphore.
+ *	Procure the semaphore.
  */
 void semaphore_P(semaphore_t sem) {
 	while(atomic_test_and_set(&(sem->mutex)));
@@ -68,9 +68,9 @@ void semaphore_P(semaphore_t sem) {
 		sem->mutex = 0;
 	}
 }
+
 /*
- * semaphore_V(semaphore_t sem)
- *	Signal on the semaphore.
+ *	Vacate the semaphore.
  */
 void semaphore_V(semaphore_t sem) {
 	minithread_t thread;

@@ -24,32 +24,37 @@
  */
 
 /*
- * Minithread struct. Contains the stack base and the stack top along with the
- * unique id of the thread.
+ * Minithread TCB:
+ * stackbase -> Base of the stack
+ * stacktop -> Top of the stack
+ * id -> Unique thread ID
+ * destroyed -> (1 = Thread is queued for cleanup) OR (0 = Thread is not queued for cleanup)
  */
 struct minithread {
 	stack_pointer_t stackbase;
 	stack_pointer_t stacktop;
 	int id;
+	int destroyed;
 };
 
-/*The currently executing thread*/
+/*= Currently running thread*/
 minithread_t current_thread;
 
-/*The idle thread (Used for cleanup / Never terminated)*/
+/*= Idle thread {ID: 0} (Never terminated)*/
 minithread_t idle_thread;
 
-/*Unique thread id generator. Assigned and incremented each time a new thread is spawned*/
+/*= Unique thread id counter. It is incremented each time a new thread is (attempted to be) created*/
 int thread_id_counter;
 
-/*Queue ds representing the currently runnable threads*/
+/*= Queue containing all the currently runnable threads*/
 queue_t runnable_queue;
 
-/*Queue ds representing the threads that need to be cleaned up*/
+/*= Queue containing all the threads that need to be cleaned up*/
 queue_t cleanup_queue;
 
-/*Semaphore used for blocking the cleanup thread until there are elements in the cleanup_queue*/
+/*= Semaphore for blocking the cleanup thread until there are elements in the cleanup_queue.*/
 semaphore_t cleanup_sem;
+
 
 /*
  *-----------------------
@@ -57,19 +62,23 @@ semaphore_t cleanup_sem;
  * ----------------------
  */
 
-
-/*The final procedure a minithread executes on termination*/
+/*
+ * The final procedure a minithread executes before termination.
+ * Marks the thread for termination and stops its execution
+ */
 int final_proc(arg_t final_args){
-	stack_pointer_t previous_sp = current_thread->stacktop;
+	minithread_self()->destroyed = 1;
 	queue_append(cleanup_queue, minithread_self());
 	semaphore_V(cleanup_sem);
-	//printf("Final procedure for thread id %d done, switching to idle thread\n",minithread_self()->id);
-	current_thread = idle_thread;
-	minithread_switch(&(previous_sp),&(idle_thread->stacktop));
+	printf("[INFO] Final procedure for thread {ID: %d} done\n", minithread_self()->id);
+	minithread_stop();
 	while(1);
 }
 
-/*Main procedure of the idle thread*/
+/* 
+ * The idle thread {ID: 0} procedure
+ * The idle thread never terminates so this procedure yields continously and forever
+ */
 int idle_thread_proc(arg_t idle_args){
 	/*Never terminate, constantly yielding allowing any new threads to be run*/
 	while(1){
@@ -77,7 +86,10 @@ int idle_thread_proc(arg_t idle_args){
 	}
 }
 
-/*Main procedure of the cleanup thread*/
+/* 
+ * The cleanup thread {ID: 1} procedure
+ * Frees the stack of threads marked for termination
+ */
 int cleanup_thread_proc(arg_t cleanup_args){
 	int thread_id;
 	minithread_t temp;
@@ -87,12 +99,14 @@ int cleanup_thread_proc(arg_t cleanup_args){
 		queue_dequeue(cleanup_queue,(void**) &temp);
 		thread_id = temp->id;
 		minithread_free_stack(temp->stackbase);
-		//printf("Freed thread ID: %d\n",thread_id);
+		printf("[INFO] Freed stack of thread {ID: %d}\n",thread_id);
 	}
 }
 
-
-/*Returns a new 'unique' (thread_id >= 0) on Sucess, (-1) on Failure*/
+/*
+ * = A unique thread id
+ * (>= 0) on Success, (-1) on Failure
+ */
 int new_thread_id(){
 	int temp;
 	if(thread_id_counter <= INT_MAX){
@@ -101,47 +115,63 @@ int new_thread_id(){
 		return temp;
 	}
 	else{
-		//printf("ERROR: Cannot assign new thread id\n");
+		printf("[ERROR] Could not generate new thread id (Too many threads created)\n");
 		return -1;
 	}
 }
 
-/*Creates a new minithread and makes it runnable*/
+/*
+ * Creates a new minithread and makes it runnable
+ * (new_thread) on Success, (NULL) on Failure
+ */
 minithread_t minithread_fork(proc_t proc, arg_t arg) {
 	minithread_t new_thread = minithread_create(proc,arg);
-
-	if(new_thread == NULL) {
-		//printf("ERROR: Could not start thread. [thread is null]\n");
-		return NULL;
-	}
-
-	/*Append the new thread to the run queue*/
-	queue_append(runnable_queue, new_thread);
-
+	minithread_start(new_thread);
 	return new_thread;
 }
 
-/*Creates a new minithread*/
+/* 
+ * Creates a new minithread
+ * (new_thread) on Success, (NULL) on Failure
+ */
 minithread_t minithread_create(proc_t proc, arg_t arg) {
-	minithread_t new_thread = (minithread_t) malloc(sizeof(struct minithread));
+	minithread_t new_thread;
+	int new_id;
+	new_id = new_thread_id();
+
+	if(proc == NULL) {
+		printf("[ERROR] Could not create thread (Procedure is NULL)\n");
+		return NULL;
+	}
+
+	if(new_id == -1){
+		printf("[ERROR] Could not create thread (ID assignment failed)\n");
+		return NULL;
+	}
+
+	new_thread = (minithread_t) malloc(sizeof(struct minithread));
 
 	if(new_thread == NULL){
-		//printf("ERROR: Memmory allocation for new thread failed\n");
+		printf("[ERROR] Could not create thread (Memory allocation failed)\n");
 		return NULL;
 	}
 
 	minithread_allocate_stack(&new_thread->stackbase,&new_thread->stacktop);
-	new_thread->id = new_thread_id();
+	
+	new_thread->id = new_id;
+	new_thread->destroyed = 0;
+
 	minithread_initialize_stack(&new_thread->stacktop, proc, arg, (proc_t)final_proc, NULL);
+	printf("[INFO] Created thread {ID: %d}\n",new_thread->id);
 	return new_thread;
 }
 
-/*Returns the currently executing thread*/
+/* = The currently running minithread*/
 minithread_t minithread_self() {
 	return current_thread;
 }
 
-/*Returns the id of the currently executing thread*/
+/* = ID of the currently running minithread*/
 int minithread_id() {
 	if(current_thread != NULL){
 		return current_thread->id;
@@ -149,7 +179,7 @@ int minithread_id() {
 	return -1;
 }
 
-/*Blocks the calling thread*/
+/* Stops the calling minithread and context switches to another minithread*/
 void minithread_stop() {
 	minithread_t previous_thread = current_thread;
 	
@@ -164,21 +194,30 @@ void minithread_stop() {
 	else{
 		queue_dequeue(runnable_queue,(void**) &current_thread);
 	}
-	//printf("[MINITHREAD_STOP] Switching from thread %d to thread %d\n",previous_thread->id,current_thread->id);
+	printf("[INFO] Stopping thread {ID: %d} and switching to thread {ID: %d}\n",previous_thread->id,current_thread->id);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 }
 
-/*Makes the given thread runnable*/
+/* Makes the given minithread runnable*/
 void minithread_start(minithread_t t) {
 	if (t != NULL){
-		queue_append(runnable_queue, t);
+		if(t->destroyed == 1){
+			printf("[ERROR] Could not make thread {ID: %d} runnable (Thread is queued for cleanup)\n",t->id);
+		}
+		else{
+			printf("[INFO] Made thread {ID: %d} runnable\n",t->id);
+			queue_append(runnable_queue, t);
+		}
 	}
 	else{
-		//printf("ERROR: Could not start thread. [thread is null]\n");
+		printf("[ERROR] Could not make thread runnable (Thread is NULL)\n");
 	}	
 }
 
-/*Volentarily give up the CPU & let another thread run*/
+/* 
+ * Volentarily give up the CPU & let another thread run
+ * Attempts to context switch to another minithread
+ */
 void minithread_yield() {	
 	
 	minithread_t previous_thread = current_thread;
@@ -187,7 +226,7 @@ void minithread_yield() {
 	
 	//There are no threads to context switch to just return
 	if(length == 0) {
-		//printf("[MINITHREAD_YIELD] Not yielding thread %d, no other runnable threads\n",previous_thread->id);
+		printf("[INFO] Not yielding thread {ID: %d} (No threads waiting to run)\n",previous_thread->id);
 		return;
 	}
 
@@ -199,7 +238,7 @@ void minithread_yield() {
 	queue_dequeue(runnable_queue,(void**) &current_thread);
 
 
-	//printf("[MINITHREAD_YIELD] Switching from thread %d to thread %d\n",previous_thread->id,current_thread->id);
+	printf("[INFO] Switching from thread {ID: %d} to thread {ID: %d}\n",previous_thread->id,current_thread->id);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 	
 }
@@ -219,21 +258,49 @@ void minithread_yield() {
  *
  */
 void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
+	minithread_t temp_ref;
 	runnable_queue = queue_new();
 	cleanup_queue = queue_new();
 	cleanup_sem = semaphore_create();
+
+	if(runnable_queue == NULL || cleanup_queue == NULL || cleanup_sem == NULL) {
+		printf("[FATAL] Could not initialize minithread system (Internal structure initialization failed)\n");
+		return;
+	}
+	
 	semaphore_initialize(cleanup_sem,0);
 
-	//Allocate space for the idle thread store the sp of the main thread
+	//Allocate space for the idle thread
 	idle_thread = (minithread_t) malloc(sizeof(struct minithread));
+
+	if(idle_thread == NULL){
+		printf("[FATAL] Could not spawn idle thread (Memory allocation failed)\n");
+		queue_free(runnable_queue);
+		queue_free(cleanup_queue);
+		semaphore_destroy(cleanup_sem);
+		return;
+	}
+
 	thread_id_counter = 0;
 	idle_thread->id = thread_id_counter;
-	
+	idle_thread->destroyed = 0;
+
 	thread_id_counter++;
 
 	current_thread = idle_thread;
 	
-	minithread_fork(cleanup_thread_proc,NULL);
+	temp_ref = minithread_fork(cleanup_thread_proc,NULL);
+
+	if(temp_ref == NULL){
+		printf("[FATAL] Could not spawn cleanup thread\n");
+		queue_free(runnable_queue);
+		queue_free(cleanup_queue);
+		semaphore_destroy(cleanup_sem);
+		free(idle_thread);
+		return;
+	}
+
+
 	minithread_fork(mainproc, mainarg);
 	
 	idle_thread_proc(NULL);
