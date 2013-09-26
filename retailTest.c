@@ -77,11 +77,11 @@ int beginScenario(int* arg) {
   for(employeeCounter = 0; employeeCounter < N; employeeCounter++){
 	minithread_fork(producer, NULL);
   }
-  printf("Done producing p threads");
+  
   for(customerCounter = 0; customerCounter < M; customerCounter++){
 	minithread_fork(consumer, NULL);
   }
-  printf("Done producing c threads");
+
 }
 
 void main(void) {

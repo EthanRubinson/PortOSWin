@@ -70,7 +70,7 @@ int final_proc(arg_t final_args){
 	minithread_self()->destroyed = 1;
 	queue_append(cleanup_queue, minithread_self());
 	semaphore_V(cleanup_sem);
-	printf("[INFO] Final procedure for thread {ID: %d} done\n", minithread_self()->id);
+	//printf("[INFO] Final procedure for thread {ID: %d} done\n", minithread_self()->id);
 	minithread_stop();
 	while(1);
 }
@@ -99,7 +99,7 @@ int cleanup_thread_proc(arg_t cleanup_args){
 		queue_dequeue(cleanup_queue,(void**) &temp);
 		thread_id = temp->id;
 		minithread_free_stack(temp->stackbase);
-		printf("[INFO] Freed stack of thread {ID: %d}\n",thread_id);
+		//printf("[INFO] Freed stack of thread {ID: %d}\n",thread_id);
 	}
 }
 
@@ -162,7 +162,7 @@ minithread_t minithread_create(proc_t proc, arg_t arg) {
 	new_thread->destroyed = 0;
 
 	minithread_initialize_stack(&new_thread->stacktop, proc, arg, (proc_t)final_proc, NULL);
-	printf("[INFO] Created thread {ID: %d}\n",new_thread->id);
+	//printf("[INFO] Created thread {ID: %d}\n",new_thread->id);
 	return new_thread;
 }
 
@@ -194,7 +194,7 @@ void minithread_stop() {
 	else{
 		queue_dequeue(runnable_queue,(void**) &current_thread);
 	}
-	printf("[INFO] Stopping thread {ID: %d} and switching to thread {ID: %d}\n",previous_thread->id,current_thread->id);
+	//printf("[INFO] Stopping thread {ID: %d} and switching to thread {ID: %d}\n",previous_thread->id,current_thread->id);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 }
 
@@ -205,7 +205,7 @@ void minithread_start(minithread_t t) {
 			printf("[ERROR] Could not make thread {ID: %d} runnable (Thread is queued for cleanup)\n",t->id);
 		}
 		else{
-			printf("[INFO] Made thread {ID: %d} runnable\n",t->id);
+			//printf("[INFO] Made thread {ID: %d} runnable\n",t->id);
 			queue_append(runnable_queue, t);
 		}
 	}
@@ -226,7 +226,7 @@ void minithread_yield() {
 	
 	//There are no threads to context switch to just return
 	if(length == 0) {
-		printf("[INFO] Not yielding thread {ID: %d} (No threads waiting to run)\n",previous_thread->id);
+		//printf("[INFO] Not yielding thread {ID: %d} (No threads waiting to run)\n",previous_thread->id);
 		return;
 	}
 
@@ -238,7 +238,7 @@ void minithread_yield() {
 	queue_dequeue(runnable_queue,(void**) &current_thread);
 
 
-	printf("[INFO] Switching from thread {ID: %d} to thread {ID: %d}\n",previous_thread->id,current_thread->id);
+	//printf("[INFO] Switching from thread {ID: %d} to thread {ID: %d}\n",previous_thread->id,current_thread->id);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 	
 }
