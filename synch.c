@@ -59,14 +59,16 @@ void semaphore_initialize(semaphore_t sem, int cnt) {
  *	Procure the semaphore.
  */
 void semaphore_P(semaphore_t sem) {
-	while(atomic_test_and_set(&(sem->mutex)));
+	
+	//while(atomic_test_and_set(&(sem->mutex)));
 	if (--sem->limit < 0) {
 		queue_append(sem->waiting, minithread_self());
-		sem->mutex = 0;
+		//sem->mutex = 0;
 		minithread_stop();
-	} else {
-		sem->mutex = 0;
 	}
+	// else {
+		//sem->mutex = 0;
+	//}
 }
 
 /*
@@ -74,11 +76,11 @@ void semaphore_P(semaphore_t sem) {
  */
 void semaphore_V(semaphore_t sem) {
 	minithread_t thread;
-	while(atomic_test_and_set(&(sem->mutex)));
+	//while(atomic_test_and_set(&(sem->mutex)));
 	
 	if(++sem->limit <= 0) {
 		queue_dequeue(sem->waiting,(void**) &thread);
 		minithread_start((minithread_t) thread);			 
 	}
-	sem->mutex = 0;
+	//sem->mutex = 0;
 }
