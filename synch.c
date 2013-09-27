@@ -46,6 +46,11 @@ void semaphore_destroy(semaphore_t sem) {
  *	sem with an initial value cnt.
  */
 void semaphore_initialize(semaphore_t sem, int cnt) {
+	if(sem == NULL){
+		printf("[ERROR] Could not initialize semaphore (Semaphore is NULL)\n");
+		return;
+	}
+	
 	sem->limit = cnt;
 	//sem->mutex = 0;
 	sem->waiting = queue_new();
@@ -59,7 +64,11 @@ void semaphore_initialize(semaphore_t sem, int cnt) {
  *	Procure the semaphore.
  */
 void semaphore_P(semaphore_t sem) {
-	
+	if(sem == NULL){
+		printf("[ERROR] Could not procure semaphore (Semaphore is NULL)\n");
+		return;
+	}
+
 	//while(atomic_test_and_set(&(sem->mutex)));
 	if (--sem->limit < 0) {
 		queue_append(sem->waiting, minithread_self());
@@ -76,6 +85,12 @@ void semaphore_P(semaphore_t sem) {
  */
 void semaphore_V(semaphore_t sem) {
 	minithread_t thread;
+
+	if(sem == NULL){
+		printf("[ERROR] Could not vacate semaphore (Semaphore is NULL)\n");
+		return;
+	}
+
 	//while(atomic_test_and_set(&(sem->mutex)));
 	
 	if(++sem->limit <= 0) {

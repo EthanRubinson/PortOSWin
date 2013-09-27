@@ -53,6 +53,7 @@ int consumer(int* arg) {
 	free(got_phone);
 	semaphore_V(mutex);
 	semaphore_V(empty);
+	return 0;
 }
 
 /*The employee thread. Continously unpack phones in sequential order*/
@@ -69,6 +70,7 @@ int producer(int* arg) {
 		semaphore_V(full);
 		minithread_yield();
 	}
+	return 0;
 }
 
 /*Initialze the retail scenario*/
@@ -95,7 +97,7 @@ int beginScenario(int* arg) {
   for(customerCounter = 0; customerCounter < M; customerCounter++){
 	minithread_fork(consumer, NULL);
   }
-
+  return 0;
 }
 
 void main(void) {
