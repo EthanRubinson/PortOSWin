@@ -15,7 +15,7 @@
  */
 struct semaphore {
     int limit;
-	tas_lock_t mutex;
+	//tas_lock_t mutex;
 	queue_t waiting;
 };
 
@@ -47,7 +47,7 @@ void semaphore_destroy(semaphore_t sem) {
  */
 void semaphore_initialize(semaphore_t sem, int cnt) {
 	sem->limit = cnt;
-	sem->mutex = 0;
+	//sem->mutex = 0;
 	sem->waiting = queue_new();
 	
 	if(sem->waiting == NULL){
