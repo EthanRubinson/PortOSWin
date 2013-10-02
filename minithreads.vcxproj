@@ -83,12 +83,16 @@
   <ItemDefinitionGroup>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="alarm.c" />
     <ClCompile Include="buffer.c" />
     <ClCompile Include="end.c" />
     <ClCompile Include="interrupts.c" />
     <ClCompile Include="machineprimitives.c" />
     <ClCompile Include="machineprimitives_x86.c" />
     <ClCompile Include="minithread.c" />
+    <ClCompile Include="multilevel_queue.c" />
+    <ClCompile Include="network.c" />
+    <ClCompile Include="pid_random.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="queue_test.c" />
     <ClCompile Include="random.c" />
@@ -101,12 +105,17 @@
     <ClCompile Include="test3.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="alarm.h" />
     <ClInclude Include="defs.h" />
     <ClInclude Include="interrupts.h" />
     <ClInclude Include="interrupts_private.h" />
     <ClInclude Include="machineprimitives.h" />
     <ClInclude Include="minithread.h" />
+    <ClInclude Include="multilevel_queue.h" />
+    <ClInclude Include="network.h" />
+    <ClInclude Include="pid_random.h" />
     <ClInclude Include="queue.h" />
+    <ClInclude Include="random.h" />
     <ClInclude Include="synch.h" />
   </ItemGroup>
   <ItemGroup>
