@@ -15,7 +15,7 @@
  */
 struct semaphore {
     int limit;
-	//tas_lock_t mutex;
+	tas_lock_t mutex;
 	queue_t waiting;
 };
 
@@ -52,7 +52,7 @@ void semaphore_initialize(semaphore_t sem, int cnt) {
 	}
 	
 	sem->limit = cnt;
-	//sem->mutex = 0;
+	sem->mutex = 0;
 	sem->waiting = queue_new();
 	
 	if(sem->waiting == NULL){
@@ -69,15 +69,15 @@ void semaphore_P(semaphore_t sem) {
 		return;
 	}
 
-	//while(atomic_test_and_set(&(sem->mutex)));
+	while(atomic_test_and_set(&(sem->mutex)));
 	if (--sem->limit < 0) {
 		queue_append(sem->waiting, minithread_self());
-		//sem->mutex = 0;
+		sem->mutex = 0;
 		minithread_stop();
 	}
-	// else {
-		//sem->mutex = 0;
-	//}
+	else {
+		sem->mutex = 0;
+	}
 }
 
 /*
@@ -91,11 +91,11 @@ void semaphore_V(semaphore_t sem) {
 		return;
 	}
 
-	//while(atomic_test_and_set(&(sem->mutex)));
+	while(atomic_test_and_set(&(sem->mutex)));
 	
 	if(++sem->limit <= 0) {
 		queue_dequeue(sem->waiting,(void**) &thread);
 		minithread_start((minithread_t) thread);			 
 	}
-	//sem->mutex = 0;
+	sem->mutex = 0;
 }
