@@ -12,11 +12,11 @@
 int
 thread(int* arg) {
   printf("Hello, world!\n");
-  minithread_yield();
-  printf("Hello, world again!\n");
+
   return 0;
 }
 
+void 
 main(void) {
   minithread_system_initialize(thread, NULL);
 }

@@ -48,11 +48,11 @@ WINSOCKLIB = ws2_32.lib
 
 # Uncomment these when compiling in Visual Studio 2010 to output a 64 bit binary
 # Note that you need to open a Visual Studio x64 Win64 Command Prompt to use these options.
-SDKLIBPATH = "C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64"
-VCLIBPATH = "C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\lib\amd64"
-WINVER = "WIN64"
-MACHINE = "X64"
-PRIMITIVES = machineprimitives_x86_64_asm
+#SDKLIBPATH = "C:\Program Files\Microsoft SDKs\Windows\v7.1\Lib\x64"
+#VCLIBPATH = "C:\Program Files (x86)\Microsoft Visual Studio 10.0\VC\lib\amd64"
+#WINVER = "WIN64"
+#MACHINE = "X64"
+#PRIMITIVES = machineprimitives_x86_64_asm
 
 ###############################################################################
 
@@ -65,19 +65,21 @@ LIB = kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib s
 # change this to the name of the file you want to link with minithreads, 
 # dropping the ".c": so to use "sieve.c", change to "MAIN = sieve".
 
-MAIN = retailTest
+MAIN = sieve
 
 SYSTEMOBJ = interrupts.obj \
 
-OBJ = 	random.obj\
+OBJ = alarm.obj\
+	random.obj\
 	minithread.obj \
 	machineprimitives_x86.obj \
 	$(PRIMITIVES).obj \
 	machineprimitives.obj \
 	queue.obj \
 	$(MAIN).obj \
-	synch.obj 
-
+	synch.obj \
+	multilevel_queue.obj \
+	pid_random.obj
 
 all: minithreads.exe
 

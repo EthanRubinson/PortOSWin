@@ -1,7 +1,7 @@
-/*test2.c
+/* test2.c
 
-   Spawn a three threads.*/
-
+   Spawn a three threads.
+*/
 
 #include "minithread.h"
 

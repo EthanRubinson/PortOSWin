@@ -33,16 +33,15 @@ extern void semaphore_destroy(semaphore_t sem);
  */
 extern void semaphore_initialize(semaphore_t sem, int cnt);
 
-
 /*
  * semaphore_P(semaphore_t sem)
- *	P on the sempahore.
+ *	P on the sempahore. Your new implementation should use TAS locks.
  */
 extern void semaphore_P(semaphore_t sem);
 
 /*
  * semaphore_V(semaphore_t sem)
- *	V on the sempahore.
+ *	V on the sempahore. Your new implementation should use TAS locks.
  */
 extern void semaphore_V(semaphore_t sem);
 

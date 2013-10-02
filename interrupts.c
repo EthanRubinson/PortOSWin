@@ -211,7 +211,13 @@ unsigned __int64 loopforever_end(void) {
    
    disables interrupts before passing control to the return thread.
    */
-void __fastcall receive_interrupt(CONTEXT* context, int type, void* arg) {
+#if defined(_M_AMD64)
+/* x64 silently ignores __fastcall */
+void receive_interrupt (CONTEXT *context, int type, void *arg)
+#else
+void __fastcall receive_interrupt (CONTEXT *context, int type, void *arg)
+#endif
+{
   signal_queue_t* sq;
   interrupt_queue_t* interrupt_info;
 
@@ -319,7 +325,8 @@ DWORD WINAPI interrupt_return_assist(LPVOID ptr) {
 	context.ContextFlags = CONTEXT_FULL;
 #else
 	context.ContextFlags = 
-	  CONTEXT_FULL | CONTEXT_FLOATING_POINT | CONTEXT_DEBUG_REGISTERS;
+     CONTEXT_FULL | CONTEXT_FLOATING_POINT | CONTEXT_DEBUG_REGISTERS 
+                  | CONTEXT_CONTROL;
 #endif
 
 	AbortOnError(GetThreadContext(system_thread, &context));
@@ -388,7 +395,8 @@ void send_interrupt(int type, void* arg) {
     context.ContextFlags = CONTEXT_FULL;
 #else
     context.ContextFlags = 
-      CONTEXT_FULL | CONTEXT_FLOATING_POINT | CONTEXT_DEBUG_REGISTERS;
+      CONTEXT_FULL | CONTEXT_FLOATING_POINT | CONTEXT_DEBUG_REGISTERS 
+                   | CONTEXT_CONTROL;
 #endif
     /* Warning: a printf here makes the system lock */
 
@@ -464,8 +472,11 @@ void send_interrupt(int type, void* arg) {
 
   /* now fix the system thread's stack so it runs run_user_handler */
   {
+#ifdef _M_AMD64
+        __int64 stack;
+#else
     int stack;
-    int oldpc = 0;
+#endif
 
     if (DEBUG) {
       kprintf("Interrupts are enabled, system thread pc = 0x%x\n", EIP);
@@ -474,8 +485,6 @@ void send_interrupt(int type, void* arg) {
 
     /* set the interrupt number */
     /* arg->intnumber = ++intnumber; */
-
-    oldpc = EIP;
     stack = ESP;	/* Esp == extended stack pointer */
 
     /* safe to do a printf because other thread is stunned in user code */
@@ -483,18 +492,29 @@ void send_interrupt(int type, void* arg) {
       kprintf("Suspended system thread, adjusting stack, sp = 0x%x\n", stack);
 
     stack -= (sizeof(CONTEXT) + 64); /* 64 is slop */
+        /* This alignment is necessary on x64 systems, otherwise it will crash
+         * with error code 998.
+         */
+        stack += 64 - (stack % 64); /* align to a 64-byte boundary */
     memcpy((int *) stack, &context, sizeof(CONTEXT));
-
-    EIP = (int) ((void *) receive_interrupt);
+    EIP = receive_interrupt;
     REG1 = stack; /*pointer to context*/    
-    REG2 = (int) type; /*type, second argument */
+    REG2 = type; /*type, second argument */
 #ifndef WINCE
+#ifdef _M_AMD64
+        context.R8 = (__int64) arg;
+        /* space to store registers */
+        stack -= sizeof(int *) * 5;
+        /* used in debugging the ra */
+        *(__int64 *) stack = 0xdeadbeefcafebabe;
+#else
     /* for x86 put arg pointer on the stack since only two 
        parameters can be passed in registers.
     */
     stack-=sizeof(void*);
     *((int*)stack)=(int) arg;
     stack-=sizeof(void*); 
+#endif
 #else
     /* for ARM put the third argument in R2 */
     context.R2 = (int) arg;

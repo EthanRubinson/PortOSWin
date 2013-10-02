@@ -1,7 +1,7 @@
 /* test3.c
 
-   Ping-pong between threads using semaphores.*/
-
+   Ping-pong between threads using semaphores.
+*/
 
 #include "minithread.h"
 #include "synch.h"
