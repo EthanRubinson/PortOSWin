@@ -57,7 +57,9 @@ queue_t cleanup_queue;
 /*= Semaphore for blocking the cleanup thread until there are elements in the cleanup_queue.*/
 semaphore_t cleanup_sem;
 
-int tick_num = 0;
+long ticks = 0;
+
+int loop = 0;
 
 /*
  *-----------------------
@@ -257,7 +259,6 @@ void minithread_yield() {
 
 	queue_dequeue(runnable_queue,(void**) &current_thread);
 
-
 	//printf("[INFO] Switching from thread {ID: %d} to thread {ID: %d}\n",previous_thread->id,current_thread->id);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 	
@@ -271,10 +272,23 @@ void minithread_yield() {
 void clock_handler(void* arg)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
-	printf("Clock Tick # %d\n",++ticks);
+	loop < 160 ? loop++ : (loop = 0);
+
+	if (loop <= 80) {
+		printf("First Level Context Switch : %d \n", loop);
+		// move current thread to second level queue
+	} else if (loop <= 120 && loop % 2 == 0) {
+		printf("Second Level Context Switch : %d \n", loop);
+		// move current thread to third level queue
+	} else if (loop <= 144 && loop % 4 == 0) {
+		printf("Third Level Context Switch : %d \n", loop);
+		// move current thread to last lavel queue
+	} else if (loop % 8 == 0) {
+		printf("Last Level Context Switch : %d \n", loop);
+	} else {}
+
 	set_interrupt_level(intlevel);
 }
-
 
 /*
  * Initialization.

@@ -151,7 +151,7 @@ int multilevel_queue_dequeue(multilevel_queue_t queue, int level, void** item)
 		return -1;
 	}
 
-	return 0;
+	return curr_level->priority_level;
 }
 
 /* 
