@@ -9,11 +9,13 @@
  */
 #include <stdlib.h>
 #include <stdio.h>
+#include "interrupts.h"
 #include "minithread.h"
 #include "queue.h"
 #include "synch.h"
 
 #include <assert.h>
+
 
 /*
  * A minithread should be defined either in this file or in a private
@@ -55,6 +57,7 @@ queue_t cleanup_queue;
 /*= Semaphore for blocking the cleanup thread until there are elements in the cleanup_queue.*/
 semaphore_t cleanup_sem;
 
+int tick_num = 0;
 
 /*
  *-----------------------
@@ -67,11 +70,13 @@ semaphore_t cleanup_sem;
  * Marks the thread for termination and stops its execution
  */
 int final_proc(arg_t final_args){
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_self()->destroyed = 1;
 	queue_append(cleanup_queue, minithread_self());
 	semaphore_V(cleanup_sem);
 	//printf("[INFO] Final procedure for thread {ID: %d} done\n", minithread_self()->id);
 	minithread_stop();
+	set_interrupt_level(intlevel);
 	while(1);
 }
 
@@ -91,11 +96,11 @@ int idle_thread_proc(arg_t idle_args){
  * Frees the stack of threads marked for termination
  */
 int cleanup_thread_proc(arg_t cleanup_args){
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	int thread_id;
 	minithread_t temp;
 	while(1){
 		semaphore_P(cleanup_sem);
-		
 		queue_dequeue(cleanup_queue,(void**) &temp);
 		thread_id = temp->id;
 		minithread_free_stack(temp->stackbase);
@@ -108,14 +113,17 @@ int cleanup_thread_proc(arg_t cleanup_args){
  * (>= 0) on Success, (-1) on Failure
  */
 int new_thread_id(){
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	int temp;
 	if(thread_id_counter <= INT_MAX){
 		temp = thread_id_counter;
 		thread_id_counter++;
+		set_interrupt_level(intlevel);
 		return temp;
 	}
 	else{
 		printf("[ERROR] Could not generate new thread id (Too many threads created)\n");
+		set_interrupt_level(intlevel);
 		return -1;
 	}
 }
@@ -125,8 +133,10 @@ int new_thread_id(){
  * (new_thread) on Success, (NULL) on Failure
  */
 minithread_t minithread_fork(proc_t proc, arg_t arg) {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t new_thread = minithread_create(proc,arg);
 	minithread_start(new_thread);
+	set_interrupt_level(intlevel);
 	return new_thread;
 }
 
@@ -135,17 +145,20 @@ minithread_t minithread_fork(proc_t proc, arg_t arg) {
  * (new_thread) on Success, (NULL) on Failure
  */
 minithread_t minithread_create(proc_t proc, arg_t arg) {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t new_thread;
 	int new_id;
 	new_id = new_thread_id();
 
 	if(proc == NULL) {
 		printf("[ERROR] Could not create thread (Procedure is NULL)\n");
+		set_interrupt_level(intlevel);
 		return NULL;
 	}
 
 	if(new_id == -1){
 		printf("[ERROR] Could not create thread (ID assignment failed)\n");
+		set_interrupt_level(intlevel);
 		return NULL;
 	}
 
@@ -153,6 +166,7 @@ minithread_t minithread_create(proc_t proc, arg_t arg) {
 
 	if(new_thread == NULL){
 		printf("[ERROR] Could not create thread (Memory allocation failed)\n");
+		set_interrupt_level(intlevel);
 		return NULL;
 	}
 
@@ -163,6 +177,7 @@ minithread_t minithread_create(proc_t proc, arg_t arg) {
 
 	minithread_initialize_stack(&new_thread->stacktop, proc, arg, (proc_t)final_proc, NULL);
 	//printf("[INFO] Created thread {ID: %d}\n",new_thread->id);
+	set_interrupt_level(intlevel);
 	return new_thread;
 }
 
@@ -179,8 +194,12 @@ int minithread_id() {
 	return -1;
 }
 
-/* Stops the calling minithread and context switches to another minithread*/
+/* 
+ * DEPRECATED. Beginning from project 2, you should use minithread_unlock_and_stop() instead
+ * of this function.
+ */
 void minithread_stop() {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t previous_thread = current_thread;
 	
 	//Get the number of threads waiting to run
@@ -189,7 +208,6 @@ void minithread_stop() {
 	//There are no threads to context switch to so switch to the idle thread
 	if(length == 0) {
 		current_thread = idle_thread;
-		
 	}
 	else{
 		queue_dequeue(runnable_queue,(void**) &current_thread);
@@ -200,6 +218,7 @@ void minithread_stop() {
 
 /* Makes the given minithread runnable*/
 void minithread_start(minithread_t t) {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	if (t != NULL){
 		if(t->destroyed == 1){
 			printf("[ERROR] Could not make thread {ID: %d} runnable (Thread is queued for cleanup)\n",t->id);
@@ -211,7 +230,8 @@ void minithread_start(minithread_t t) {
 	}
 	else{
 		printf("[ERROR] Could not make thread runnable (Thread is NULL)\n");
-	}	
+	}
+	set_interrupt_level(intlevel);
 }
 
 /* 
@@ -219,14 +239,14 @@ void minithread_start(minithread_t t) {
  * Attempts to context switch to another minithread
  */
 void minithread_yield() {	
-	
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t previous_thread = current_thread;
 	
 	int length = queue_length(runnable_queue);
-	
 	//There are no threads to context switch to just return
 	if(length == 0) {
 		//printf("[INFO] Not yielding thread {ID: %d} (No threads waiting to run)\n",previous_thread->id);
+		set_interrupt_level(intlevel);
 		return;
 	}
 
@@ -244,6 +264,19 @@ void minithread_yield() {
 }
 
 /*
+ * This is the clock interrupt handling routine.
+ * You have to call minithread_clock_init with this
+ * function as parameter in minithread_system_initialize
+ */
+void clock_handler(void* arg)
+{
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+	printf("Clock Tick # %d\n",++ticks);
+	set_interrupt_level(intlevel);
+}
+
+
+/*
  * Initialization.
  *
  * 	minithread_system_initialize:
@@ -258,6 +291,7 @@ void minithread_yield() {
  *
  */
 void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t temp_ref;
 	runnable_queue = queue_new();
 	cleanup_queue = queue_new();
@@ -290,7 +324,7 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	current_thread = idle_thread;
 	
 	temp_ref = minithread_fork(cleanup_thread_proc,NULL);
-
+	
 	if(temp_ref == NULL){
 		printf("[FATAL] Could not spawn cleanup thread\n");
 		queue_free(runnable_queue);
@@ -299,9 +333,29 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 		free(idle_thread);
 		return;
 	}
-
-
 	minithread_fork(mainproc, mainarg);
 	
+	
+	minithread_clock_init(clock_handler);
+	set_interrupt_level(intlevel);
+	
 	idle_thread_proc(NULL);
+}
+
+/*
+ * minithread_unlock_and_stop(tas_lock_t* lock)
+ *	Atomically release the specified test-and-set lock and
+ *	block the calling thread.
+ */
+void minithread_unlock_and_stop(tas_lock_t* lock)
+{
+
+}
+
+/*
+ * sleep with timeout in milliseconds
+ */
+void minithread_sleep_with_timeout(int delay)
+{
+
 }
