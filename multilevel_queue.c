@@ -166,6 +166,11 @@ int multilevel_queue_free(multilevel_queue_t queue)
 		return -1;
 	}
 
+	if(queue->top_level == NULL){
+		free(queue);
+		return 0;
+	}
+
 	curr = queue->top_level->next_level;
 	/*Remove all elements from the queue until size is 0 (dequeue return -1)*/
 	while(curr != NULL){

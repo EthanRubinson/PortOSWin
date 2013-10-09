@@ -1,10 +1,13 @@
 //Things to ask at office hours
 // Do we need interrupt disabled on the minithread fork since it is not directly modifying internal data
-
+//How to handle the interrupt delay cause by minithread yield
+//Data structure for alarms?
 
 //Statment pairs: these statements need to occur in pairs, otherwise invarients will be messed up
 // setting current_priority_level & ticks_since_last_level_switch
 // current_thread->runtime_remaining & minithread_switch
+
+
 
 /*
  * minithread.c:
@@ -48,6 +51,7 @@ struct minithread {
 	int priority;
 	int runtime_remaining;
 	int destroyed;
+	semaphore_t wait_on_alarm;
 };
 
 /*= How many scheduled priority levels there are in the minithread system*/
@@ -78,6 +82,9 @@ queue_t cleanup_queue;
 /*= Semaphore for blocking the cleanup thread until there are elements in the cleanup_queue.*/
 semaphore_t cleanup_sem;
 
+/*int pointer to pass as a final_arg*/
+int final_proc_args = 0;
+
 /*
  *-----------------------
  * minithread functions
@@ -101,19 +108,20 @@ int get_sweep_runtime_for_priority(int pri){
 		return 16;
 }
 
-
 /*
  * The final procedure a minithread executes before termination.
  * Marks the thread for termination and stops its execution
  */
 int final_proc(arg_t final_args){
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+
 	minithread_self()->destroyed = 1;
 	queue_append(cleanup_queue, minithread_self());
 	semaphore_V(cleanup_sem);
 	//printf("[INFO] Final procedure for thread {ID: %d} done\n", minithread_self()->id);
-	minithread_stop();
-	set_interrupt_level(intlevel);
+
+	//Remove this and add logic to switch to the next thread
+	minithread_unlock_and_stop(final_args);
 	while(1);
 }
 
@@ -124,7 +132,7 @@ int final_proc(arg_t final_args){
 int idle_thread_proc(arg_t idle_args){
 	/*Never terminate, constantly yielding allowing any new threads to be run*/
 	while(1){
-		minithread_yield();
+		//minithread_yield();
 	}
 }
 
@@ -170,8 +178,10 @@ int new_thread_id(){
  * (new_thread) on Success, (NULL) on Failure
  */
 minithread_t minithread_fork(proc_t proc, arg_t arg) {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t new_thread = minithread_create(proc,arg);
 	minithread_start(new_thread);
+	set_interrupt_level(intlevel);
 	return new_thread;
 }
 
@@ -213,8 +223,9 @@ minithread_t minithread_create(proc_t proc, arg_t arg) {
 	new_thread->priority = 0;
 	new_thread->runtime_remaining = get_thread_runtime_for_priority(new_thread->priority);
 	new_thread->destroyed = 0;
-
-	minithread_initialize_stack(&new_thread->stacktop, proc, arg, (proc_t)final_proc, NULL);
+	new_thread->wait_on_alarm = semaphore_create();
+	semaphore_initialize(new_thread->wait_on_alarm,0);
+	minithread_initialize_stack(&new_thread->stacktop, proc, arg, (proc_t)final_proc, &final_proc_args);
 	//printf("[INFO] Created thread {ID: %d}\n",new_thread->id);
 
 	set_interrupt_level(intlevel);
@@ -238,7 +249,7 @@ int minithread_id() {
  * DEPRECATED. Beginning from project 2, you should use minithread_unlock_and_stop() instead
  * of this function.
  */
-void minithread_stop() {
+/*void minithread_stop() {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t previous_thread = current_thread;
 	
@@ -254,7 +265,7 @@ void minithread_stop() {
 	}
 	//printf("[INFO] Stopping thread {ID: %d} and switching to thread {ID: %d}\n",previous_thread->id,current_thread->id);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
-}
+}*/
 
 /* Makes the given minithread runnable at the appropriate priority level*/
 void minithread_start(minithread_t t) {
@@ -326,7 +337,8 @@ void clock_handler(void* arg)
 
 	//Increment/decremement the appriopriate tick counters
 	ticks++;
-	
+	if(ticks % 20 == 0)
+		printf("%d\n",ticks/20);
 	//We are running the idle thread
 	if(previous_thread == idle_thread){
 		dequeue_result = multilevel_queue_dequeue(runnable_queue, 0, (void **)&current_thread);
@@ -421,8 +433,6 @@ void clock_handler(void* arg)
 		}
 	}
 
-	
-
 	set_interrupt_level(intlevel);
 }
 
@@ -470,6 +480,8 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	//The idle thread has no priority/max runtime as it is only scheduled when there are other threads to run
 	idle_thread->priority = -1;
 	idle_thread->runtime_remaining = -1;
+	idle_thread->wait_on_alarm = semaphore_create();
+	semaphore_initialize(idle_thread->wait_on_alarm,0);
 	thread_id_counter++;
 	current_thread = idle_thread;
 	
@@ -494,7 +506,7 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 
 	
 	//Reset interrupt levels and begin program execution with the idle_proc
-	set_interrupt_level(intlevel);
+	set_interrupt_level(ENABLED);
 	idle_thread_proc(NULL);
 }
 
@@ -505,6 +517,32 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
  */
 void minithread_unlock_and_stop(tas_lock_t* lock)
 {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+	minithread_t previous_thread = current_thread;
+	
+	//Gets the next possible thread to run starting the search at the current prioirty level
+	int dequeue_result = multilevel_queue_dequeue(runnable_queue, current_priority_level,(void**) &current_thread);
+	
+	*lock = 0;
+	//If there are no other threads anywhere in the run-queue, don't switch to anything
+	if(dequeue_result == -1){
+		current_thread = idle_thread;
+		current_priority_level = 0;
+		ticks_since_last_level_switch = 0;
+		minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
+	}
+
+	//If this new thread is on a different priority level than the current thread, we need to adjust our prioirty level and tick counter
+	if(current_priority_level != current_thread->priority){
+		ticks_since_last_level_switch = 0;
+		current_priority_level = current_thread->priority;
+	}
+
+	//Context switch to this new thread (automatically re-enabled interrupts)
+
+	current_thread->runtime_remaining = get_thread_runtime_for_priority(current_thread->priority);
+	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
+
 
 }
 

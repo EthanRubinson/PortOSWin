@@ -72,8 +72,7 @@ void semaphore_P(semaphore_t sem) {
 	while(atomic_test_and_set(&(sem->mutex)));
 	if (--sem->limit < 0) {
 		queue_append(sem->waiting, minithread_self());
-		sem->mutex = 0;
-		minithread_stop();
+		minithread_unlock_and_stop(&(sem->mutex));
 	}
 	else {
 		sem->mutex = 0;

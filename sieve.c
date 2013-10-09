@@ -52,8 +52,9 @@ int source(int* arg) {
 int filter(int* arg) {
   filter_t* f = (filter_t *) arg;
   int value;
-
+  int x=0;
   for (;;) {
+	  for(x = 0; x< INT_MAX/5;x++){}
     semaphore_P(f->left->consume);
     value = f->left->value;
     semaphore_V(f->left->produce);
@@ -72,7 +73,7 @@ int filter(int* arg) {
 int sink(int* arg) {
   channel_t* p = (channel_t *) malloc(sizeof(channel_t));
   int value;
-
+  int x = 0;
   p->produce = semaphore_create();
   semaphore_initialize(p->produce, 0);
   p->consume = semaphore_create();
@@ -96,6 +97,8 @@ int sink(int* arg) {
     f->left = p;
     f->prime = value;
     
+	for(x = 0; x< INT_MAX/5;x++){}
+
     p = (channel_t *) malloc(sizeof(channel_t));
     p->produce = semaphore_create();
     semaphore_initialize(p->produce, 0);
