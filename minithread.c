@@ -377,7 +377,7 @@ void clock_handler(void* arg)
 
 			//The thread has exhausted its alloted runtime quanta and needs to be switched & decreased in priority since it has not volentarrily given up execution
 			if(previous_thread->runtime_remaining == 0){
-				previous_thread->priority--;
+				previous_thread->priority = (min(previous_thread->priority + 1,NUM_PRIORITY_LEVELS-1));
 			}
 
 			if(dequeue_result == -1){
