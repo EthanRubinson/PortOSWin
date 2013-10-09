@@ -54,7 +54,7 @@ int filter(int* arg) {
   int value;
   int x=0;
   for (;;) {
-	  for(x = 0; x< INT_MAX/5;x++){}
+	minithread_sleep_with_timeout(1000);
     semaphore_P(f->left->consume);
     value = f->left->value;
     semaphore_V(f->left->produce);
@@ -96,8 +96,6 @@ int sink(int* arg) {
     f = (filter_t *) malloc(sizeof(filter_t));
     f->left = p;
     f->prime = value;
-    
-	for(x = 0; x< INT_MAX/5;x++){}
 
     p = (channel_t *) malloc(sizeof(channel_t));
     p->produce = semaphore_create();

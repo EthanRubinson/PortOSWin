@@ -23,6 +23,7 @@
 #include "interrupts.h"
 #include "minithread.h"
 #include "queue.h"
+#include "alarm.h"
 #include "multilevel_queue.h"
 #include "synch.h"
 
@@ -81,6 +82,7 @@ queue_t cleanup_queue;
 
 /*= Semaphore for blocking the cleanup thread until there are elements in the cleanup_queue.*/
 semaphore_t cleanup_sem;
+
 
 /*int pointer to pass as a final_arg*/
 int final_proc_args = 0;
@@ -337,8 +339,13 @@ void clock_handler(void* arg)
 
 	//Increment/decremement the appriopriate tick counters
 	ticks++;
-	if(ticks % 20 == 0)
-		printf("%d\n",ticks/20);
+	//if(ticks % 20 == 0)
+		//printf("%d\n",ticks/20);
+
+
+	process_alarms();
+
+
 	//We are running the idle thread
 	if(previous_thread == idle_thread){
 		dequeue_result = multilevel_queue_dequeue(runnable_queue, 0, (void **)&current_thread);
@@ -499,6 +506,8 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	//Create the mainproc thread
 	minithread_fork(mainproc, mainarg);
 	
+	create_and_initialize_alarms();
+
 	//Set the current priority level to 0 and initialize the clock handler
 	current_priority_level = 0;
 	ticks_since_last_level_switch = 0;
@@ -542,14 +551,19 @@ void minithread_unlock_and_stop(tas_lock_t* lock)
 
 	current_thread->runtime_remaining = get_thread_runtime_for_priority(current_thread->priority);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
-
-
 }
-
+void minithread_wakeup(void *arg) {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+	semaphore_V(((minithread_t) arg)->wait_on_alarm);
+	set_interrupt_level(intlevel);
+}
 /*
  * sleep with timeout in milliseconds
  */
-void minithread_sleep_with_timeout(int delay)
-{
-
+void minithread_sleep_with_timeout(int delay) {
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+	register_alarm(delay,minithread_wakeup,current_thread);
+	semaphore_P(current_thread->wait_on_alarm);
+	set_interrupt_level(intlevel);
 }
+
