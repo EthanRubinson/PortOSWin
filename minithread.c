@@ -1,14 +1,3 @@
-//Things to ask at office hours
-// Do we need interrupt disabled on the minithread fork since it is not directly modifying internal data
-//How to handle the interrupt delay cause by minithread yield
-//Data structure for alarms?
-
-//Statment pairs: these statements need to occur in pairs, otherwise invarients will be messed up
-// setting current_priority_level & ticks_since_last_level_switch
-// current_thread->runtime_remaining & minithread_switch
-
-
-
 /*
  * minithread.c:
  *	This file provides a few function headers for the procedures that
@@ -26,7 +15,6 @@
 #include "alarm.h"
 #include "multilevel_queue.h"
 #include "synch.h"
-
 #include <assert.h>
 
 
@@ -43,7 +31,10 @@
  * stackbase -> Base of the stack
  * stacktop -> Top of the stack
  * id -> Unique thread ID
+ * priority -> Current prioirity level of the thread
+ * runtime_remaining -> Current remaining runtime of the thread
  * destroyed -> (1 = Thread is queued for cleanup) OR (0 = Thread is not queued for cleanup)
+ * wait_on_alarm -> Semaphore used for blocking a thread until the corresponding alarm event is fired
  */
 struct minithread {
 	stack_pointer_t stackbase;
@@ -73,8 +64,7 @@ minithread_t idle_thread;
 /*= Unique thread id counter. It is incremented each time a new thread is (attempted to be) created*/
 int thread_id_counter;
 
-/*= Queue containing all the currently runnable threads*/
-//queue_t runnable_queue;
+/*= Multilevel queue containing all the currently runnable threads at the corresponding priority levels*/
 multilevel_queue_t runnable_queue;
 
 /*= Queue containing all the threads that need to be cleaned up*/
@@ -83,8 +73,7 @@ queue_t cleanup_queue;
 /*= Semaphore for blocking the cleanup thread until there are elements in the cleanup_queue.*/
 semaphore_t cleanup_sem;
 
-
-/*int pointer to pass as a final_arg*/
+/*= pointer to pass as a final_arg. Used as a 'throwaway pointer' in the unlock_and_stop procedure to simplify cleanup logic*/
 int final_proc_args = 0;
 
 /*
@@ -122,7 +111,7 @@ int final_proc(arg_t final_args){
 	semaphore_V(cleanup_sem);
 	//printf("[INFO] Final procedure for thread {ID: %d} done\n", minithread_self()->id);
 
-	//Remove this and add logic to switch to the next thread
+	//Reuse the unlock&stop logic. Passes the final_args as a throwaway pointer to be 'unlocked'
 	minithread_unlock_and_stop(final_args);
 	while(1);
 }
@@ -132,8 +121,10 @@ int final_proc(arg_t final_args){
  * The idle thread never terminates so this procedure yields continously and forever
  */
 int idle_thread_proc(arg_t idle_args){
-	/*Never terminate, constantly yielding allowing any new threads to be run*/
+	//Never terminate...
 	while(1){
+		/*No longer yields as this causes many interrupts to be lost if the idle thread is running
+		instead, it is forced to block by the clock_handler whenever an interrupt arrives and there are other threads to run*/
 		//minithread_yield();
 	}
 }
@@ -372,6 +363,8 @@ void clock_handler(void* arg)
 
 		//We have hit the max sweep time for the given priority and need to switch to the next one
 		if(ticks_since_last_level_switch == get_sweep_runtime_for_priority(current_priority_level)){
+			ticks_since_last_level_switch = 0;
+
 			//Find the next thread in the run_queue starting at this new prioirty level
 			dequeue_result = multilevel_queue_dequeue(runnable_queue,(current_priority_level + 1) % NUM_PRIORITY_LEVELS,(void **)&current_thread);
 
@@ -385,7 +378,6 @@ void clock_handler(void* arg)
 				previous_thread->runtime_remaining = get_thread_runtime_for_priority(previous_thread->priority);
 				current_thread = previous_thread;
 				current_priority_level = current_thread->priority;
-				ticks_since_last_level_switch = 0;
 				set_interrupt_level(intlevel);
 				return;
 			}
@@ -552,13 +544,17 @@ void minithread_unlock_and_stop(tas_lock_t* lock)
 	current_thread->runtime_remaining = get_thread_runtime_for_priority(current_thread->priority);
 	minithread_switch(&(previous_thread->stacktop),&(current_thread->stacktop));
 }
+
+/*
+ * Wake the specified thread by signaling its alarm sempahore
+ */
 void minithread_wakeup(void *arg) {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	semaphore_V(((minithread_t) arg)->wait_on_alarm);
 	set_interrupt_level(intlevel);
 }
 /*
- * sleep with timeout in milliseconds
+ * Block the current thread for the given delay in milliseconds by procuring its alarm semaphore
  */
 void minithread_sleep_with_timeout(int delay) {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
