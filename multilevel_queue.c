@@ -98,7 +98,7 @@ int multilevel_queue_enqueue(multilevel_queue_t queue, int level, void* item)
 {	
 	int desired_level = level;
 	struct queue_level* curr_level;
-	if(queue == NULL || level < 0 || level > queue->num_levels){
+	if(queue == NULL || level < 0 || level >= queue->num_levels){
 		return -1;
 	}
 
@@ -123,7 +123,7 @@ int multilevel_queue_dequeue(multilevel_queue_t queue, int level, void** item)
 	int flag = 0;
 	int desired_level = level;
 	struct queue_level* curr_level;
-	if(queue == NULL || level < 0 || level > queue->num_levels){
+	if(queue == NULL || level < 0 || level >= queue->num_levels){
 		*item = NULL;
 		return -1;
 	}
