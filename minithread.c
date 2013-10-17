@@ -104,10 +104,12 @@ int get_sweep_runtime_for_priority(int pri){
  * Marks the thread for termination and stops its execution
  */
 int final_proc(arg_t final_args){
-	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
-
+	interrupt_level_t intlevel;
 	minithread_self()->destroyed = 1;
+	intlevel = set_interrupt_level(DISABLED);
 	queue_append(cleanup_queue, minithread_self());
+	set_interrupt_level(intlevel);
+
 	semaphore_V(cleanup_sem);
 	//printf("[INFO] Final procedure for thread {ID: %d} done\n", minithread_self()->id);
 
@@ -171,10 +173,8 @@ int new_thread_id(){
  * (new_thread) on Success, (NULL) on Failure
  */
 minithread_t minithread_fork(proc_t proc, arg_t arg) {
-	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t new_thread = minithread_create(proc,arg);
 	minithread_start(new_thread);
-	set_interrupt_level(intlevel);
 	return new_thread;
 }
 
@@ -555,9 +555,9 @@ void minithread_unlock_and_stop(tas_lock_t* lock)
  * Wake the specified thread by signaling its alarm sempahore
  */
 void minithread_wakeup(void *arg) {
-	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+	//interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	semaphore_V(((minithread_t) arg)->wait_on_alarm);
-	set_interrupt_level(intlevel);
+	//set_interrupt_level(intlevel);
 }
 /*
  * Block the current thread for the given delay in milliseconds by procuring its alarm semaphore

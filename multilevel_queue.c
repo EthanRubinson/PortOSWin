@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+/*Struct representing a specific level of the queue*/
 struct queue_level {
 	queue_t base_queue;
 	struct queue_level* next_level;
@@ -12,14 +13,12 @@ struct queue_level {
 	int priority_level;
 };
 
+/*Main multilevel queue struct containing a pointer to the top and bottom levels (head and tail)*/
 struct multilevel_queue {
 	struct queue_level* top_level;
 	struct queue_level* bottom_level;
 	int num_levels;
 };
-
-
-
 
 /*
  * Returns an empty multilevel queue with number_of_levels levels. On error should return NULL.

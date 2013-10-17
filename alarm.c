@@ -5,7 +5,12 @@
 #include "minithread.h"
 #include "queue.h"
 
-
+/*Alarm node struct.
+ * alarm_id -> id of the alarm
+ * wakeup_time -> the time which this alarm should be fired
+ * passed_funct(passed_args) -> function with corresponding arguments that the alarm triggers
+ * next -> pointer the the next (earliest) alarm in the list
+ */
 struct alarm_node{
 	int alarm_id;
 	long wakeup_time;
@@ -14,6 +19,7 @@ struct alarm_node{
 	struct alarm_node* next;
 };
 
+/*Alarm list. Maintains a pointer to the head*/
 struct alarm_list {
 	struct alarm_node* head;
 };
@@ -25,7 +31,7 @@ alarm_list_t registered_alarms;
 int alarm_id_counter = 0;
 
 
-// create/initialze
+/*Creates and initializes an alarm*/
 int create_and_initialize_alarms() {
 	registered_alarms = (alarm_list_t) malloc(sizeof(struct alarm_list));
 	
@@ -39,7 +45,28 @@ int create_and_initialize_alarms() {
 	return 0;
 }
 
-//delete
+/*Removes the next (earliest in time to be triggered) alarm from the list*/
+void alarm_list_deleteFirst() {
+	alarm_node_t current_alarm;
+
+	if (registered_alarms == NULL) {
+		printf("[ERROR] Cannot delete from empty list \n");
+		return;
+	}
+	current_alarm = registered_alarms->head;
+
+	if (current_alarm == NULL) {
+		printf("[ERROR] Cannot remove alarm, it is NULL \n");
+		return;
+	}
+
+	registered_alarms->head = current_alarm->next;
+	free(current_alarm);
+}
+
+
+
+/*Deletes an alarm with the specified alarm id*/
 void alarm_list_delete(int id) {
 	alarm_node_t current_alarm;
 	alarm_node_t previous_alarm;
@@ -70,7 +97,9 @@ void alarm_list_delete(int id) {
 	printf("[INFO] ID not found in alarm list, could not delete \n");
 }
 
-//insert (returns alarm id)
+/*Inserts an alarm into the list such that all alarms "before" it should be triggered first and all alarms "after" it are triggered later
+ * --> Returns the alarmID of said alarm
+ */
 int alarm_list_insert(int wakeup, void (*func)(void*), void *arg) {
 	alarm_node_t current_alarm;
 	alarm_node_t previous_alarm;
@@ -112,7 +141,7 @@ int alarm_list_insert(int wakeup, void (*func)(void*), void *arg) {
 	return new_alarm_node->alarm_id;
 }
 
-
+/*Processes any alarms that need to be fired based on the current tick-count from "earliest" to "latest" wakeup times*/
 void process_alarms(){
 	while(registered_alarms != NULL && registered_alarms->head != NULL && registered_alarms->head->wakeup_time <= ticks){
 		registered_alarms->head->passed_funct(registered_alarms->head->passed_args);
@@ -144,7 +173,7 @@ int register_alarm(int delay, void (*func)(void*), void *arg)
 void deregister_alarm(int alarmid)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
-	alarm_list_delete(alarmid);
+	alarm_list_deleteFirst();
 	set_interrupt_level(intlevel);
 }
 
