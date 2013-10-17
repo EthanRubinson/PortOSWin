@@ -142,7 +142,7 @@ int cleanup_thread_proc(arg_t cleanup_args){
 		queue_dequeue(cleanup_queue,(void**) &temp);
 		thread_id = temp->id;
 		minithread_free_stack(temp->stackbase);
-		printf("[INFO] Freed stack of thread {ID: %d}\n",thread_id);
+		//printf("[INFO] Freed stack of thread {ID: %d}\n",thread_id);
 	}
 }
 

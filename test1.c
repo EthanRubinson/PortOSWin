@@ -13,8 +13,7 @@ int
 thread(int* arg) {
   printf("Hello, world!\n");
  while(1) {
-  minithread_sleep_with_timeout(4000);
-	printf("boo\n");
+  
  }
 }
 
