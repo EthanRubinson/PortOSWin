@@ -16,7 +16,7 @@
 #include "multilevel_queue.h"
 #include "synch.h"
 #include <assert.h>
-
+#include <math.h>
 
 /*
  * A minithread should be defined either in this file or in a private
@@ -84,7 +84,7 @@ int final_proc_args = 0;
 
 /*= approptiate runtime in ticks for a thread at the given priority level*/
 int get_thread_runtime_for_priority(int pri){
-	return 2 ^ pri;	
+	return (int)pow(2.0,pri);
 }
 
 /*= total runtime in ticks a given priority level is sweeped for*/
@@ -142,7 +142,7 @@ int cleanup_thread_proc(arg_t cleanup_args){
 		queue_dequeue(cleanup_queue,(void**) &temp);
 		thread_id = temp->id;
 		minithread_free_stack(temp->stackbase);
-		//printf("[INFO] Freed stack of thread {ID: %d}\n",thread_id);
+		printf("[INFO] Freed stack of thread {ID: %d}\n",thread_id);
 	}
 }
 
@@ -327,11 +327,11 @@ void clock_handler(void* arg)
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	minithread_t previous_thread = current_thread;
 	int dequeue_result;
-
+	
 	//Increment/decremement the appriopriate tick counters
 	ticks++;
 	//if(ticks % 20 == 0)
-		//printf("%d\n",ticks/20);
+		//printf("%d\n",current_thread->priority);
 
 
 	process_alarms();
@@ -360,9 +360,12 @@ void clock_handler(void* arg)
 	else{
 		ticks_since_last_level_switch++;
 		previous_thread ->runtime_remaining--;
+		//printf("[INFO] Runtime Remaining %d!\n", previous_thread->runtime_remaining);
 
 		//We have hit the max sweep time for the given priority and need to switch to the next one
 		if(ticks_since_last_level_switch == get_sweep_runtime_for_priority(current_priority_level)){
+			//printf("[INFO] Need to switch priority levels!\n");
+				
 			ticks_since_last_level_switch = 0;
 
 			//Find the next thread in the run_queue starting at this new prioirty level
@@ -370,6 +373,7 @@ void clock_handler(void* arg)
 
 			//The thread has exhausted its alloted runtime quanta and needs to be switched & decreased in priority since it has not volentarrily given up execution
 			if(previous_thread->runtime_remaining == 0){
+				//printf("[INFO] Handler switched thread ID=%d from priority %d to %d\n",previous_thread->id,previous_thread->priority,(min(previous_thread->priority + 1,NUM_PRIORITY_LEVELS-1)));
 				previous_thread->priority = (min(previous_thread->priority + 1,NUM_PRIORITY_LEVELS-1));
 			}
 
@@ -394,6 +398,7 @@ void clock_handler(void* arg)
 		else{
 			//The thread has exhausted its alloted runtime quanta and needs to be switched & decreased in priority since it has not volentarrily given up execution
 			if(previous_thread->runtime_remaining == 0){
+				//printf("[INFO] Switched thread ID=%d from priority %d to %d\n",previous_thread->id,previous_thread->priority,(min(previous_thread->priority + 1,NUM_PRIORITY_LEVELS-1)));
 				previous_thread->priority = (min(previous_thread->priority + 1,NUM_PRIORITY_LEVELS-1));
 
 				//Get the next runnable thread starting the search at the current priority level
@@ -402,6 +407,7 @@ void clock_handler(void* arg)
 				if(dequeue_result == -1){
 					//There are no other threads to run except for the one running, so reset its runtime (for the new prioirty) and continue running it
 					previous_thread->runtime_remaining = get_thread_runtime_for_priority(previous_thread->priority);
+					//printf("[INFO] Reset Runtime to %d for new priority %d\n",previous_thread->runtime_remaining,previous_thread->priority);
 					current_thread = previous_thread;
 					current_priority_level = current_thread->priority;
 					ticks_since_last_level_switch = 0;

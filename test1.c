@@ -12,8 +12,10 @@
 int
 thread(int* arg) {
   printf("Hello, world!\n");
-
-  return 0;
+ while(1) {
+  minithread_sleep_with_timeout(4000);
+	printf("boo\n");
+ }
 }
 
 void 
