@@ -24,12 +24,14 @@
 #define MINIMSG_PORT 8086
 
 #define BCAST_ENABLED 0
+#define BCAST_USE_TOPOLOGY_FILE 0
+#define BCAST_ADDRESS "192.168.1.255"
 #define BCAST_LOOPBACK 0
 #define BCAST_TOPOLOGY_FILE "topology.txt"
 
 
 /* you should treat this as being opaque */
-typedef unsigned long network_address_t[2];
+typedef unsigned int network_address_t[2];
 
 
 typedef struct {
@@ -38,6 +40,23 @@ typedef struct {
   int size;
 } network_interrupt_arg_t;
 
+/* Copy address "original" to address "copy".  We added this function
+* to network.c so that we can treat network_address_t as "opaque" outside
+* of network.h and network.c. */
+
+/* zero the address, so as to make it invalid */
+void network_address_blankify(network_address_t addr);
+
+void
+network_address_copy(network_address_t original, network_address_t copy);
+
+/*Compare two addresses, return 1 if same, 0 otherwise.*/
+int
+network_address_same(network_address_t a, network_address_t b);
+
+//print an address
+void
+network_printaddr(network_address_t addr);
 
 void 
 network_address_to_sockaddr(network_address_t addr, struct sockaddr_in *sin);
@@ -81,6 +100,14 @@ network_get_my_address(network_address_t my_address);
 
 int
 network_translate_hostname(char* hostname, network_address_t address);
+
+/*
+ * Compares network addresses. Returns 0 if different and 
+ * nonzero if identical. 
+ */
+int 
+network_compare_network_addresses(network_address_t addr1,
+				  network_address_t addr2);
 
 /*
  * write the network address in a human-readable way, into a buffer of length

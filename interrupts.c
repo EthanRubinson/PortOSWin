@@ -583,7 +583,9 @@ void minithread_clock_init(interrupt_handler_t clock_handler)
     return;
   }
 
-  kprintf("Starting clock interrupts.\n");
+  if (DEBUG){
+	 kprintf("Starting clock interrupts.\n");
+  }
 
   /* set values for *start_address and *stop_address */
   start_address = start();
@@ -638,7 +640,9 @@ int register_interrupt(int type, interrupt_handler_t handler,
   int error=0;
   interrupt_level_t old_interrupt_level;
 
-  kprintf("Registering interrupt of type %d.\n",type);
+  if (DEBUG){
+	kprintf("Registering interrupt of type %d.\n",type);
+  }
 
   /* disable interrupts not to have surprises */
   old_interrupt_level = set_interrupt_level(DISABLED);
@@ -651,7 +655,9 @@ int register_interrupt(int type, interrupt_handler_t handler,
   if (interrupt_info != NULL) {
     /* interrupt already exists, return error */
     error=-1;
+	if (DEBUG){
     kprintf("An interrupt of this type already registered.\n");
+	}
   } else {
     new_interrupt = (interrupt_queue_t*) malloc(sizeof(interrupt_queue_t));
     new_interrupt->type = type;

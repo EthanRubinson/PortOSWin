@@ -56,6 +56,35 @@ struct address_info {
 
 struct address_info if_info;
 static tas_lock_t initialized = 0;
+static network_address_t broadcast_addr = { 0 };
+
+/* forward definition */
+void start_network_poll(interrupt_handler_t, SOCKET*);
+
+/* zero the address, so as to make it invalid */
+void network_address_blankify(network_address_t addr) {
+   addr[0]=addr[1]=0;
+}
+
+/** Copy address "original" to address "copy". */
+void
+network_address_copy(network_address_t original, network_address_t copy) {
+  copy[0] = original[0];
+  copy[1] = original[1];
+}
+
+/* Compare addresses. Return 1 if same, 0 if different. */
+int
+network_address_same(network_address_t a, network_address_t b) {
+  return (a[0] == b[0] && a[1] == b[1]);
+}
+
+void
+network_printaddr(network_address_t addr) {
+  char name[40];
+  network_format_address(addr, name, 40);
+  printf("%s", name);
+}
 
 static int
 send_pkt(network_address_t dest_address, 
@@ -87,8 +116,10 @@ send_pkt(network_address_t dest_address,
   sz = data_len;
   memcpy(bufp, data, sz);
   bufp += sz;
-  
+ 
+  //printf("network_address_to_sockaddr\n");
   network_address_to_sockaddr(dest_address, &sin);
+  //printf("call sendto\n");
   cc = sendto(if_info.sock,
 	      if_info.pkt,
 	      pktlen,
@@ -102,7 +133,8 @@ send_pkt(network_address_t dest_address,
 int 
 network_send_pkt(network_address_t dest_address, int hdr_len, 
 		 char* hdr, int data_len, char* data) {
-
+  //printf("network_send_pkt: called\n"); //DEBUG
+  //printf("network_send_pkt : synthetic network - %d\n", synthetic_network);
   if (synthetic_network) {
     if(genrand() < loss_rate)
       return (hdr_len+data_len);
@@ -111,6 +143,7 @@ network_send_pkt(network_address_t dest_address, int hdr_len,
       send_pkt(dest_address, hdr_len, hdr, data_len, data);
   }
 
+  //printf("call send_pkt\n");
   return send_pkt(dest_address, hdr_len, hdr, data_len, data);
 }
 
@@ -126,26 +159,34 @@ int
 network_translate_hostname(char* hostname, network_address_t address) {
   struct hostent* host;
   unsigned long iaddr;
-  printf("resolving name %s\n",hostname);
-  if(inet_addr(hostname)==INADDR_NONE) {
+  //printf("resolving name %s\n",hostname);
+  if(isalpha(hostname[0])) {
 	  host = gethostbyname(hostname);
 	  if (host == NULL)
 		return -1;
 	  else {
 		address[0] = (long) *((int *) host->h_addr);
 		address[1] = (long) htons(other_udp_port);
-		printf("address[0] = %x",address[0]);
-		printf("address[1] = %x",address[1]);
+		//printf("address[0] = %x",address[0]);
+		//printf("address[1] = %x\n",address[1]);
 		return 0;
 	  }
   }
   else {
 	  iaddr = inet_addr(hostname);
-	  printf("iaddr = %x\n",iaddr);
+	  //printf("iaddr = %x\n",iaddr);
 	  address[0] = iaddr;
 	  address[1] = (long) htons(other_udp_port);
+	  //printf("address[0] = %x",address[0]);
+	  //printf("address[1] = %x\n",address[1]);
 	  return 0;
    }  
+}
+
+int 
+network_compare_network_addresses(network_address_t addr1,
+				  network_address_t addr2){
+  return (addr1[0]==addr2[0] && addr1[1]==addr2[1]);
 }
 
 void
@@ -157,6 +198,8 @@ sockaddr_to_network_address(struct sockaddr_in* sin, network_address_t addr) {
 void
 network_address_to_sockaddr(network_address_t addr, struct sockaddr_in* sin) {
   memset(sin, 0, sizeof(*sin));
+  //printf("address[0] = %x",addr[0]);
+  //printf("address[1] = %x\n",addr[1]);
   sin->sin_addr.s_addr = addr[0];
   sin->sin_port = (short)addr[1];
   sin->sin_family = SOCK_DGRAM;
@@ -315,30 +358,40 @@ network_bcast_pkt(int hdr_len, char* hdr, int data_len, char* data) {
   AbortOnCondition(!BCAST_ENABLED,
 		   "Error: network broadcast not enabled.");
   
-  me = topology.me;
+  if (BCAST_USE_TOPOLOGY_FILE){
 
-  for (i=0; i<topology.entries[me].n_links; i++) {
-    int dest = topology.entries[me].links[i];
-
-    if (synthetic_network) {
-      if(genrand() < loss_rate)
-	continue;
+    me = topology.me;
+    
+    for (i=0; i<topology.entries[me].n_links; i++) {
+      int dest = topology.entries[me].links[i];
       
-      if(genrand() < duplication_rate)
-	send_pkt(topology.entries[dest].addr, hdr_len, hdr, data_len, data);
+      if (synthetic_network) {
+	if(genrand() < loss_rate)
+	  continue;
+	
+	if(genrand() < duplication_rate)
+	  send_pkt(topology.entries[dest].addr, hdr_len, hdr, data_len, data);
+      }
+      
+      if (send_pkt(topology.entries[dest].addr, 
+		   hdr_len, hdr, data_len, data) != hdr_len + data_len)
+	return -1;
     }
 
-    if (send_pkt(topology.entries[dest].addr, 
-		 hdr_len, hdr, data_len, data) != hdr_len + data_len)
-      return -1;
-  }
+    if (BCAST_LOOPBACK) {
+      if (send_pkt(topology.entries[me].addr, 
+		   hdr_len, hdr, data_len, data) != hdr_len + data_len)
+	return -1;
+    }
+  
+  } else { /* real broadcast */
 
-  if (BCAST_LOOPBACK) {
-    if (send_pkt(topology.entries[me].addr, 
+    /* send the packet using the private network broadcast address */
+    if (send_pkt(broadcast_addr, 
 		 hdr_len, hdr, data_len, data) != hdr_len + data_len)
       return -1;
+
   }
-    
   return hdr_len+data_len;
 }
 
@@ -386,8 +439,30 @@ network_initialize(interrupt_handler_t network_handler) {
   assert(setsockopt(if_info.sock, SOL_SOCKET, SO_REUSEADDR, 
 		    (char *) &arg, sizeof(int)) == 0);
 
-  if (BCAST_ENABLED)
-    bcast_initialize(BCAST_TOPOLOGY_FILE, &topology);
+  if (BCAST_ENABLED){
+    if (BCAST_USE_TOPOLOGY_FILE){
+      bcast_initialize(BCAST_TOPOLOGY_FILE, &topology);
+    } else {
+      assert(setsockopt(if_info.sock, SOL_SOCKET, SO_BROADCAST, 
+		    (char *) &arg, sizeof(int)) == 0);
+
+      network_translate_hostname(BCAST_ADDRESS,broadcast_addr);
+    }
+  }
+
+  /*
+   * Print network information on the screen (mostly for Joranda).
+   */
+
+  {
+    network_address_t my_address;
+    char my_hostname[256];
+    
+    network_get_my_address(my_address);
+    network_format_address(my_address, my_hostname, 256);
+
+    //kprintf("Hostname of local machine: %s.\n",my_hostname);
+  }
 
   /*
    * Interrupts are handled through the caller's handler.
@@ -457,7 +532,7 @@ void start_network_poll(interrupt_handler_t network_handler, SOCKET* s) {
   HANDLE network_thread = NULL; /* NT thread to check for incoming packets */
   DWORD id;
 
-  kprintf("Starting network interrupts.\n");
+  //kprintf("Starting network interrupts.\n");
 
   register_interrupt(NETWORK_INTERRUPT_TYPE, network_handler, INTERRUPT_DEFER);
 
