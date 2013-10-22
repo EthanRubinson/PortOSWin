@@ -2,11 +2,29 @@
  *	Implementation of minimsgs and miniports.
  */
 #include "minimsg.h"
+#include "queue.h"
+#include "synch.h"
 
-struct miniport
-{
-	int dummy; /* you should erase this field and replace it with your definition */
+typedef enum {UNBOUNDED,BOUNDED} port_t;
+
+struct miniport { 
+	port_t port_type; 
+	int port_number; 
+
+	union { 
+		struct { 
+			queue_t incoming_data; 
+			semaphore_t datagrams_ready; 
+		} unbound_port; 
+
+		struct { 
+			network_address_t remote_address; 
+			int remote_unbound_port; 
+		} bound_port;
+
+	} port_structure;
 };
+
 
 /* performs any required initialization of the minimsg layer.
  */
@@ -24,7 +42,27 @@ void minimsg_initialize()
  */
 miniport_t miniport_create_unbound(int port_number)
 {
+	miniport_t new_port;
 
+	if( port_number < 0 || port_number > 32767){
+		printf("[ERROR] Specified port number [%d] for an unbounded port is out of range.\n", port_number);
+		return NULL;
+	}
+	
+	new_port = (miniport_t) malloc(sizeof(struct miniport));
+	
+	/*If memory allocation fails, return NULL*/
+	if (new_port == NULL) {
+		return NULL;
+	}
+	new_port->port_structure.unbound_port.incoming_data = queue_new();
+	new_port->port_structure.unbound_port.datagrams_ready = semaphore_create();
+	semaphore_initialize(new_port->port_structure.unbound_port.datagrams_ready,0);
+
+	new_port->port_type = UNBOUNDED;
+	new_port->port_number = port_number;
+	
+	return new_port;
 }
 
 /* Creates a bound port for use in sending packets. The two parameters, addr and
