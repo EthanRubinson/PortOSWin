@@ -89,9 +89,17 @@
     <ClCompile Include="interrupts.c" />
     <ClCompile Include="machineprimitives.c" />
     <ClCompile Include="machineprimitives_x86.c" />
+    <ClCompile Include="miniheader.c" />
+    <ClCompile Include="minimsg.c" />
     <ClCompile Include="minithread.c" />
     <ClCompile Include="multilevel_queue.c" />
     <ClCompile Include="network.c" />
+    <ClCompile Include="network1.c" />
+    <ClCompile Include="network2.c" />
+    <ClCompile Include="network3.c" />
+    <ClCompile Include="network4.c" />
+    <ClCompile Include="network5.c" />
+    <ClCompile Include="network6.c" />
     <ClCompile Include="pid_random.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="queue_test.c" />
@@ -110,6 +118,8 @@
     <ClInclude Include="interrupts.h" />
     <ClInclude Include="interrupts_private.h" />
     <ClInclude Include="machineprimitives.h" />
+    <ClInclude Include="miniheader.h" />
+    <ClInclude Include="minimsg.h" />
     <ClInclude Include="minithread.h" />
     <ClInclude Include="multilevel_queue.h" />
     <ClInclude Include="network.h" />
