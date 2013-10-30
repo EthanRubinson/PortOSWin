@@ -4,6 +4,7 @@
  *	Implementation of minimsgs and miniports.
  */
 #include "minimsg.h"
+#include "miniheader.h"
 #include "queue.h"
 #include "synch.h"
 
@@ -16,7 +17,7 @@ typedef enum {UNBOUNDED,BOUNDED} port_t;
 
 struct miniport { 
 	port_t port_type; 
-	int port_number; 
+	unsigned short port_number; 
 
 	union { 
 		struct { 
@@ -26,7 +27,7 @@ struct miniport {
 
 		struct { 
 			network_address_t remote_address; 
-			int remote_unbound_port; 
+			unsigned short remote_unbound_port; 
 		} bound_port;
 
 	} port_structure;
@@ -130,7 +131,7 @@ miniport_t miniport_create_bound(network_address_t addr, int remote_unbound_port
 		return NULL;
 	}
 
-	if( remote_unbound_port_number > UNBOUNDED_PORT_LIMIT || remote_unbound_port_number < UNBOUNDED_PORT_LIMIT){
+	if( remote_unbound_port_number > UNBOUNDED_PORT_LIMIT || remote_unbound_port_number < UNBOUNDED_PORT_START){
 		printf("[ERROR] Specified remote port number [%d] is out of range.\n", remote_unbound_port_number);
 		return NULL;
 	}
@@ -190,7 +191,54 @@ void miniport_destroy(miniport_t miniport)
  */
 int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, minimsg_t msg, int len)
 {
+	mini_header_t packet_header;
+	network_address_t local_addr;
+	int bytes_sent;
 
+	if(msg == NULL){
+		printf("[ERROR] Cannot send a NULL message\n");
+		return 0;
+	}
+	if(len == 0){
+		printf("[ERROR] Cannot send a message of length 0\n");
+		return 0;
+	}
+	if(local_bound_port == NULL){
+		printf("[ERROR] Local bound (sending) port cannot be NULL\n");
+		return 0;
+	}
+	if(local_unbound_port == NULL){
+		printf("[ERROR] Local unbounded (listening) port cannot be NULL\n");
+		return 0;
+	}
+	if(len > MINIMSG_MAX_MSG_SIZE){
+		printf("[ERROR] Size of message cannot exceed %d bytes\n", MINIMSG_MAX_MSG_SIZE);
+		return 0;
+	}
+
+	packet_header = (mini_header_t)malloc(sizeof(struct mini_header));
+	
+	if(packet_header == NULL) {
+		printf("[ERROR] Memory allocation for packet header failed\n");
+		return 0;
+	}
+
+	packet_header->protocol = PROTOCOL_MINIDATAGRAM;
+
+	pack_unsigned_short(packet_header->source_port, local_bound_port->port_number);
+	pack_unsigned_short(packet_header->destination_port, local_bound_port->port_structure.bound_port.remote_unbound_port);
+	
+
+	network_get_my_address(local_addr);
+	pack_address(packet_header->source_address, local_addr);
+	pack_address(packet_header->destination_address, local_bound_port->port_structure.bound_port.remote_address);
+	
+
+	bytes_sent = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(packet_header), (char *)packet_header,	len , msg);
+
+	free(packet_header);
+	
+	return bytes_sent;
 }
 
 /* Receives a message through a locally unbound port. Threads that call this function are
