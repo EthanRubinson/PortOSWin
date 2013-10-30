@@ -225,7 +225,7 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 
 	packet_header->protocol = PROTOCOL_MINIDATAGRAM;
 
-	pack_unsigned_short(packet_header->source_port, local_bound_port->port_number);
+	pack_unsigned_short(packet_header->source_port, local_unbound_port->port_number);
 	pack_unsigned_short(packet_header->destination_port, local_bound_port->port_structure.bound_port.remote_unbound_port);
 	
 
@@ -251,5 +251,29 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
  */
 int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_port, minimsg_t msg, int *len)
 {
+	network_interrupt_arg_t *data_received;
+	network_address_t response_address;
+	unsigned int response_port;
+	semaphore_P(local_unbound_port->port_structure.unbound_port.datagrams_ready);
+	queue_dequeue(local_unbound_port->port_structure.unbound_port.incoming_data, (void **) &data_received);
+
+	unpack_address(data_received->buffer + 1, response_address);
+	unpack_address(data_received->buffer + 9, &response_port);
+
+	*new_local_bound_port = miniport_create_bound(response_address, response_port);
+
+	msg = data_received->buffer + sizeof(mini_header_t);
+	*len = data_received->size - sizeof(mini_header_t);
+
+	return *len;
+
+
+	/*char protocol;
+
+	char source_address[8];
+	char source_port[2];
+	
+	char destination_address[8];
+	char destination_port[2];*/
 
 }
