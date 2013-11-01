@@ -15,6 +15,9 @@
 #include "alarm.h"
 #include "multilevel_queue.h"
 #include "synch.h"
+#include "network.h"
+#include "minimsg.h"
+#include "miniheader.h"
 #include <assert.h>
 #include <math.h>
 
@@ -318,6 +321,21 @@ void minithread_yield() {
 }
 
 /*
+ * The network handler
+ */
+void network_handler(void* arg)
+{
+	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
+	unsigned short response_port = unpack_unsigned_short(incomming_data->buffer + 19);
+	printf("In the network handler. Let's process\n");
+	minimsg_process(response_port,incomming_data);
+	printf("In the network handler. Processing complete\n");
+	set_interrupt_level(intlevel);
+}
+
+
+/*
  * This is the clock interrupt handling routine.
  * You have to call minithread_clock_init with this
  * function as parameter in minithread_system_initialize
@@ -510,8 +528,8 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	current_priority_level = 0;
 	ticks_since_last_level_switch = 0;
 	minithread_clock_init(clock_handler);
-
-	
+	network_initialize(network_handler);
+	minimsg_initialize();
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
 	idle_thread_proc(NULL);
@@ -568,4 +586,3 @@ void minithread_sleep_with_timeout(int delay) {
 	semaphore_P(current_thread->wait_on_alarm);
 	set_interrupt_level(intlevel);
 }
-

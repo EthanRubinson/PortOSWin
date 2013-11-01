@@ -56,17 +56,24 @@ void minimsg_initialize()
  */
 miniport_t miniport_create_unbound(int port_number)
 {
+	interrupt_level_t interrupt_level;
 	miniport_t new_port;
+	miniport_t temp_port;
 
 	if(port_number > UNBOUNDED_PORT_LIMIT || port_number < UNBOUNDED_PORT_START){
 		printf("[ERROR] Specified port number [%d] for an unbounded port is out of range.\n", port_number);
 		return NULL;
 	}
 
-	if(unbounded_ports[port_number] == NULL){
+	interrupt_level = set_interrupt_level(DISABLED);
+	if(unbounded_ports[port_number] != NULL){
 		printf("[INFO] Specified port number [%d] for an unbounded port is already assigned.\n", port_number);
-		return unbounded_ports[port_number];
+		temp_port = unbounded_ports[port_number];
+		set_interrupt_level(interrupt_level);
+
+		return temp_port;
 	}
+	set_interrupt_level(interrupt_level);
 	
 	new_port = (miniport_t) malloc(sizeof(struct miniport));
 	
@@ -83,20 +90,24 @@ miniport_t miniport_create_unbound(int port_number)
 	new_port->port_type = UNBOUNDED;
 	new_port->port_number = port_number;
 	
-
+	interrupt_level = set_interrupt_level(DISABLED);
 	unbounded_ports[port_number - UNBOUNDED_PORT_START] = new_port;
+	set_interrupt_level(interrupt_level);
 
 	return new_port;
 }
 
 //Returns the next available bounded port number on SUCCESS. -1 on FAILURE
 int get_next_bounded_port_number(){
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+
 	int port_iter = current_bounded_port_number;
 
 	do {
 
 		if(bounded_ports[port_iter - BOUNDED_PORT_START] == NULL){
 			current_bounded_port_number = port_iter + 1;
+			set_interrupt_level(interrupt_level);
 			return port_iter;
 		}
 
@@ -110,6 +121,7 @@ int get_next_bounded_port_number(){
 
 	}while(port_iter != current_bounded_port_number);
 
+	set_interrupt_level(interrupt_level);
 	return -1;
 }
 
@@ -123,6 +135,7 @@ int get_next_bounded_port_number(){
  */
 miniport_t miniport_create_bound(network_address_t addr, int remote_unbound_port_number)
 {
+	interrupt_level_t interrupt_level;
 	miniport_t new_port;
 	int bounded_port_num = get_next_bounded_port_number();
 
@@ -151,7 +164,9 @@ miniport_t miniport_create_bound(network_address_t addr, int remote_unbound_port
 	new_port->port_type = BOUNDED;
 	new_port->port_number = bounded_port_num;
 	
+	interrupt_level = set_interrupt_level(DISABLED);
 	bounded_ports[bounded_port_num - BOUNDED_PORT_START] = new_port;
+	set_interrupt_level(interrupt_level);
 
 	return new_port;
 
@@ -162,11 +177,15 @@ miniport_t miniport_create_bound(network_address_t addr, int remote_unbound_port
  */
 void miniport_destroy(miniport_t miniport)
 {
+	interrupt_level_t interrupt_level;
+
 	if(miniport == NULL) {
 		printf("[ERROR] Cannot destroy a NULL port");
 		return;
 	}
 
+	interrupt_level = set_interrupt_level(DISABLED);
+	
 	if(miniport->port_type = UNBOUNDED) {
 		queue_free(miniport->port_structure.unbound_port.incoming_data); 
 		semaphore_destroy(miniport->port_structure.unbound_port.datagrams_ready);
@@ -174,6 +193,8 @@ void miniport_destroy(miniport_t miniport)
 	} else {
 		bounded_ports[miniport->port_number - BOUNDED_PORT_START] = NULL;
 	}
+	
+	set_interrupt_level(interrupt_level);
 
 	free(miniport);
 }
@@ -189,6 +210,7 @@ void miniport_destroy(miniport_t miniport)
  */
 int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, minimsg_t msg, int len)
 {
+	int bytes_sent_successfully;
 	mini_header_t packet_header;
 	network_address_t local_addr;
 
@@ -230,7 +252,7 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 	pack_address(packet_header->source_address, local_addr);
 	pack_address(packet_header->destination_address, local_bound_port->port_structure.bound_port.remote_address);
 
-	network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(packet_header), (char *)packet_header,	len , msg);
+	bytes_sent_successfully = max(network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(packet_header), (char *)packet_header, len, msg) - sizeof(packet_header), 0);
 	
 	free(packet_header);
 
@@ -263,18 +285,26 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 
 	*new_local_bound_port = miniport_create_bound(response_address, response_port);
 
-	*len = max(MINIMSG_MAX_MSG_SIZE, data_received->size - sizeof(mini_header_t));
-	memcpy(msg, data_received->buffer + sizeof(mini_header_t), *len);
+	*len = data_received->size - sizeof(mini_header_t);
+	msg = data_received->buffer + sizeof(mini_header_t);
+	
+	
+	//memcpy(msg, data_received->buffer + sizeof(mini_header_t), *len);
 	
 	return *len;
 
+}
 
-	/*char protocol;
-
-	char source_address[8];
-	char source_port[2];
+void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *data){
+	miniport_t target_port = unbounded_ports[unbound_port_num];
 	
-	char destination_address[8];
-	char destination_port[2];*/
+	if(target_port == NULL){
+		printf("target is null.... this is bad... very bad");
+	}
+
+
+	queue_append(target_port->port_structure.unbound_port.incoming_data, data);
+
+	semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 
 }

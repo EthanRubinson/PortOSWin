@@ -111,6 +111,12 @@ int alarm_list_insert(int wakeup, void (*func)(void*), void *arg) {
 	}
 
 	new_alarm_node = (alarm_node_t) malloc(sizeof(struct alarm_node));
+
+	if(new_alarm_node == NULL){
+		printf("[ERROR] Failed to allocate memory for new alarm\n");
+		return -1;
+	}
+
 	new_alarm_node->passed_args = arg;
 	new_alarm_node->passed_funct = func;
 	new_alarm_node->wakeup_time = wakeup;

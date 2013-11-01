@@ -33,7 +33,7 @@ multilevel_queue_t multilevel_queue_new(int number_of_levels)
 	queue_t temp_queue;
 
 	if (number_of_levels <= 0) {
-		printf("[ERROR] Multilevel queue must have one or more levels");
+		printf("[ERROR] Multilevel queue must have one or more levels\n");
 		return NULL;
 	}
 
@@ -48,11 +48,17 @@ multilevel_queue_t multilevel_queue_new(int number_of_levels)
 
 	temp_queue = queue_new();
 	if(temp_queue == NULL){
-		printf("[ERROR] Multilevel queue initialization failed");
+		printf("[ERROR] Multilevel queue initialization failed\n");
 		return NULL;
 	}
 	
 	new_level = (struct queue_level*) malloc(sizeof(struct queue_level));
+
+	if(new_level == NULL){
+		printf("[ERROR] Failed to allocate memory for new queue level\n");
+		return NULL;
+	}
+
 	new_level->base_queue = temp_queue;
 	new_level->next_level = NULL;
 	new_level->prev_level = NULL;
@@ -73,6 +79,11 @@ multilevel_queue_t multilevel_queue_new(int number_of_levels)
 		 }
 
 		 new_level = (struct queue_level*) malloc(sizeof(struct queue_level));
+
+		 if(new_level == NULL){
+			 printf("[ERROR] Failed to allocate memory for new queue level\n");
+			 return NULL;
+		 }
 
 		 new_level->prev_level = current_level;
 		 new_level->next_level = NULL;
