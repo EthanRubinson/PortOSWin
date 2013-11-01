@@ -162,18 +162,16 @@ miniport_t miniport_create_bound(network_address_t addr, int remote_unbound_port
  */
 void miniport_destroy(miniport_t miniport)
 {
-	if(miniport == NULL){
+	if(miniport == NULL) {
 		printf("[ERROR] Cannot destroy a NULL port");
 		return;
 	}
 
-
-	if(miniport->port_type = UNBOUNDED){
+	if(miniport->port_type = UNBOUNDED) {
 		queue_free(miniport->port_structure.unbound_port.incoming_data); 
 		semaphore_destroy(miniport->port_structure.unbound_port.datagrams_ready);
 		unbounded_ports[miniport->port_number - UNBOUNDED_PORT_START] = NULL;
-	}
-	else{
+	} else {
 		bounded_ports[miniport->port_number - BOUNDED_PORT_START] = NULL;
 	}
 
@@ -193,7 +191,6 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 {
 	mini_header_t packet_header;
 	network_address_t local_addr;
-	int bytes_sent;
 
 	if(msg == NULL){
 		printf("[ERROR] Cannot send a NULL message\n");
@@ -232,13 +229,12 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 	network_get_my_address(local_addr);
 	pack_address(packet_header->source_address, local_addr);
 	pack_address(packet_header->destination_address, local_bound_port->port_structure.bound_port.remote_address);
+
+	network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(packet_header), (char *)packet_header,	len , msg);
 	
-
-	bytes_sent = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(packet_header), (char *)packet_header,	len , msg);
-
 	free(packet_header);
-	
-	return bytes_sent;
+
+	return len;
 }
 
 /* Receives a message through a locally unbound port. Threads that call this function are
@@ -254,17 +250,22 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 	network_interrupt_arg_t *data_received;
 	network_address_t response_address;
 	unsigned int response_port;
+	interrupt_level_t interrupt_level;
+	
 	semaphore_P(local_unbound_port->port_structure.unbound_port.datagrams_ready);
+	
+	interrupt_level = set_interrupt_level(DISABLED);
 	queue_dequeue(local_unbound_port->port_structure.unbound_port.incoming_data, (void **) &data_received);
+	set_interrupt_level(interrupt_level);
 
 	unpack_address(data_received->buffer + 1, response_address);
-	unpack_address(data_received->buffer + 9, &response_port);
+	response_port = unpack_unsigned_short(data_received->buffer + 9);
 
 	*new_local_bound_port = miniport_create_bound(response_address, response_port);
 
-	msg = data_received->buffer + sizeof(mini_header_t);
-	*len = data_received->size - sizeof(mini_header_t);
-
+	*len = max(MINIMSG_MAX_MSG_SIZE, data_received->size - sizeof(mini_header_t));
+	memcpy(msg, data_received->buffer + sizeof(mini_header_t), *len);
+	
 	return *len;
 
 
