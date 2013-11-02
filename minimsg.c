@@ -93,7 +93,7 @@ miniport_t miniport_create_unbound(int port_number)
 	
 	interrupt_level = set_interrupt_level(DISABLED);
 	unbounded_ports[port_number - UNBOUNDED_PORT_START] = new_port;
-	printf("[INFO] Created unbound port # %d\n", new_port->port_number);
+	//printf("[INFO] Created unbound port # %d\n", new_port->port_number);
 	set_interrupt_level(interrupt_level);
 
 	return new_port;
@@ -169,7 +169,7 @@ miniport_t miniport_create_bound(network_address_t addr, int remote_unbound_port
 	
 	interrupt_level = set_interrupt_level(DISABLED);
 	bounded_ports[bounded_port_num - BOUNDED_PORT_START] = new_port;
-	printf("[INFO] Created bound port # %d\n", new_port->port_number);
+	//printf("[INFO] Created bound port # %d\n", new_port->port_number);
 	set_interrupt_level(interrupt_level);
 
 	return new_port;
@@ -257,7 +257,7 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 	pack_address(packet_header->destination_address, local_bound_port->port_structure.bound_port.remote_address);
 
 	
-	printf("[INFO] Sending message from port %d, to port # %d || reply to port %d\n", local_bound_port->port_number, local_bound_port->port_structure.bound_port.remote_unbound_port,local_unbound_port->port_number);
+	//printf("[INFO] Sending message from port %d, to port # %d || reply to port %d\n", local_bound_port->port_number, local_bound_port->port_structure.bound_port.remote_unbound_port,local_unbound_port->port_number);
 	bytes_sent_successfully = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(struct mini_header), (char *)packet_header, len, msg) - sizeof(struct mini_header);
 	bytes_sent_successfully = max(bytes_sent_successfully, 0);
 	
@@ -280,7 +280,7 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 	network_address_t response_address;
 	unsigned int response_port;
 	interrupt_level_t interrupt_level;
-	printf("[INFO] Entered receive method for port # %d. Blocking until data is available\n", local_unbound_port->port_number);
+	//printf("[INFO] Entered receive method for port # %d. Blocking until data is available\n", local_unbound_port->port_number);
 
 	semaphore_P(local_unbound_port->port_structure.unbound_port.datagrams_ready);
 	
@@ -292,7 +292,7 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 	unpack_address(data_received->buffer + 1, response_address);
 	response_port = unpack_unsigned_short(data_received->buffer + 9);
 
-	printf("[INFO] Recieved message on port # %d. Reply back to port # %d\n",local_unbound_port->port_number,response_port);
+	//printf("[INFO] Recieved message on port # %d. Reply back to port # %d\n",local_unbound_port->port_number,response_port);
 
 	*new_local_bound_port = miniport_create_bound(response_address, response_port);
 
@@ -310,12 +310,12 @@ void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *d
 	miniport_t target_port = unbounded_ports[unbound_port_num];
 	
 	if(target_port == NULL){
-		printf("target is null for port %d.... this is bad... very bad", unbound_port_num);
+		printf("[ERROR] Target port %d is null", unbound_port_num);
+	}
+	else{
+		queue_append(target_port->port_structure.unbound_port.incoming_data, data);
+		semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 	}
 
-
-	queue_append(target_port->port_structure.unbound_port.incoming_data, data);
-
-	semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 
 }
