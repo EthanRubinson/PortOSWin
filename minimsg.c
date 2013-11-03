@@ -296,7 +296,7 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 
 	*new_local_bound_port = miniport_create_bound(response_address, response_port);
 
-	*len = data_received->size - sizeof(struct mini_header);
+	*len = min(max(data_received->size - sizeof(struct mini_header),0),*len);
 	//msg = data_received->buffer + sizeof(struct mini_header);
 	
 	memcpy(msg, data_received->buffer + sizeof(struct mini_header), *len);
@@ -308,14 +308,26 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 
 void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *data){
 	miniport_t target_port = unbounded_ports[unbound_port_num];
-	
+	mini_header_t header = (mini_header_t) data->buffer;
+	network_address_t destination_address;
+	network_address_t my_address;
+	network_get_my_address(my_address);
+	unpack_address(header->destination_address, destination_address);
+
 	if(target_port == NULL){
-		printf("[ERROR] Target port %d is null", unbound_port_num);
-	}
-	else{
+		printf("[ERROR] Target port %d is null \n", unbound_port_num);
+		free(data);
+	} else if (data->size < sizeof(struct mini_header)) {
+		printf("[ERROR] Packet size is smaller than header \n");
+		free(data);
+	} else if (header->protocol != PROTOCOL_MINIDATAGRAM) {
+		printf("[ERROR] Invalid packet protocol \n");
+		free(data);
+	} else if (!network_address_same(destination_address, my_address)) {
+		printf("[ERROR] Received packet not intended for us \n");
+		free(data);
+	} else {
 		queue_append(target_port->port_structure.unbound_port.incoming_data, data);
 		semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 	}
-
-
 }

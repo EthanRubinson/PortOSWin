@@ -326,8 +326,14 @@ void minithread_yield() {
 void network_handler(void* arg)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
+	unsigned short port_to_process;
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
-	unsigned short port_to_process = unpack_unsigned_short(incomming_data->buffer + 19);
+	if (incomming_data == NULL) {
+		printf("[INFO] Interrupt argument is null \n");
+		set_interrupt_level(intlevel);
+		return;
+	}
+	port_to_process = unpack_unsigned_short(incomming_data->buffer + 19);
 	//printf("[INFO] Packet received for port # %d. Signaling it...\n", port_to_process);
 	minimsg_process(port_to_process, incomming_data);
 	//printf("[INFO] Signaling complete\n");
