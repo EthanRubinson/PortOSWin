@@ -204,7 +204,7 @@ void miniport_destroy(miniport_t miniport)
  */
 int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, minimsg_t msg, int len)
 {
-	int data_bytes_sent_successfully;
+	int bytes_sent_successfully;
 	mini_header_t packet_header;
 	network_address_t local_addr;
 
@@ -246,8 +246,8 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 	pack_address(packet_header->destination_address, local_bound_port->port_structure.bound_port.remote_address);
 
 	// Send packet
-	data_bytes_sent_successfully = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(struct mini_header), (char *)packet_header, len, msg) - sizeof(struct mini_header);
-	data_bytes_sent_successfully = max(data_bytes_sent_successfully - sizeof(struct mini_header), 0);
+	bytes_sent_successfully = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(struct mini_header), (char *)packet_header, len, msg) - sizeof(struct mini_header);
+	bytes_sent_successfully = max(data_bytes_sent_successfully, 0);
 	
 	free(packet_header);
 	return len;
