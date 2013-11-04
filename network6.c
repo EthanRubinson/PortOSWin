@@ -27,6 +27,39 @@
 
 char* hostname;
 
+char * getline(void) {
+    char *line = malloc(100);
+	char *linep = line;
+	char *linen;
+    size_t lenmax = 100, len = lenmax;
+    int c;
+
+    if(line == NULL)
+        return NULL;
+
+    for(;;) {
+        c = fgetc(stdin);
+        if(c == EOF)
+            break;
+
+        if(--len == 0) {
+            len = lenmax;
+            linen = realloc(linep, lenmax *= 2);
+
+            if(linen == NULL) {
+                free(linep);
+                return NULL;
+            }
+            line = linen + (line - linep);
+            linep = linen;
+        }
+
+        if((*line++ = c) == '\n')
+            break;
+    }
+    *line = '\0';
+    return linep;
+}
 
 int receive_first(int* arg) {
   char buffer[BUFFER_SIZE];
@@ -39,10 +72,11 @@ int receive_first(int* arg) {
 
   for (i=0; i<MAX_COUNT; i++) {
     length = BUFFER_SIZE;
+	printf("Receiving message... \n");
     minimsg_receive(port, &from, buffer, &length);
     printf("%s", buffer);
-    printf("Sending packet %d.\n", i+1);
-    sprintf(buffer, "Received packet %d.\n", i+1);
+    printf("Enter message to send: \n");
+    sprintf(buffer, getline());
     length = strlen(buffer) + 1;
     minimsg_send(port, from, buffer, length);
     miniport_destroy(from);
@@ -67,11 +101,12 @@ int transmit_first(int* arg) {
   dest = miniport_create_bound(addr, 1);
 
   for (i=0; i<MAX_COUNT; i++) {
-    printf("Sending packet %d.\n", i+1);
-    sprintf(buffer, "Received packet %d.\n", i+1);
+    printf("Enter message to send: \n");
+    sprintf(buffer, getline());
     length = strlen(buffer) + 1;
     minimsg_send(port, dest, buffer, length);
     length = BUFFER_SIZE;
+	printf("Waiting for message: \n");
     minimsg_receive(port, &from, buffer, &length);
     printf("%s", buffer);
     miniport_destroy(from);
