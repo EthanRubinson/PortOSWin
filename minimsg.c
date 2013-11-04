@@ -1,5 +1,3 @@
-//Office hour questoins: Should we block if there is no more bounded port addresses, or just return NULL?
-
 /*
  *	Implementation of minimsgs and miniports.
  */
@@ -33,15 +31,17 @@ struct miniport {
 	} port_structure;
 };
 
-
+// Port arrays
 miniport_t unbounded_ports[UNBOUNDED_PORT_LIMIT - UNBOUNDED_PORT_START + 1];
 miniport_t bounded_ports[BOUNDED_PORT_LIMIT - BOUNDED_PORT_START + 1];
 int current_bounded_port_number;
 
-/* performs any required initialization of the minimsg layer.
+/* 
+ * Performs any required initialization of the minimsg layer.
  */
 void minimsg_initialize()
 {
+	// Initialize port arrays
 	current_bounded_port_number = BOUNDED_PORT_START;
 	memset(unbounded_ports, 0, sizeof(unbounded_ports));
 	memset(bounded_ports, 0, sizeof(bounded_ports));
@@ -59,13 +59,14 @@ miniport_t miniport_create_unbound(int port_number)
 	interrupt_level_t interrupt_level;
 	miniport_t new_port;
 	miniport_t temp_port;
-
 	
+	// Validate port number range
 	if(port_number > UNBOUNDED_PORT_LIMIT || port_number < UNBOUNDED_PORT_START){
 		printf("[ERROR] Specified port number [%d] for an unbounded port is out of range.\n", port_number);
 		return NULL;
 	}
 
+	// Synchronized: Check if port is aleady assigned
 	interrupt_level = set_interrupt_level(DISABLED);
 	if(unbounded_ports[port_number] != NULL){
 		printf("[INFO] Specified port number [%d] for an unbounded port is already assigned.\n", port_number);
@@ -76,52 +77,47 @@ miniport_t miniport_create_unbound(int port_number)
 	}
 	set_interrupt_level(interrupt_level);
 	
+	// Create new port
 	new_port = (miniport_t) malloc(sizeof(struct miniport));
-	
-	/*If memory allocation fails, return NULL*/
 	if (new_port == NULL) {
 		printf("[ERROR] Memory allocation for unbounded port [%d] failed.\n", port_number);
 		return NULL;
 	}
 
+	// Initialize port
 	new_port->port_structure.unbound_port.incoming_data = queue_new();
 	new_port->port_structure.unbound_port.datagrams_ready = semaphore_create();
 	semaphore_initialize(new_port->port_structure.unbound_port.datagrams_ready,0);
-
 	new_port->port_type = UNBOUNDED;
 	new_port->port_number = port_number;
 	
+	// Synchronized: record new port in array
 	interrupt_level = set_interrupt_level(DISABLED);
 	unbounded_ports[port_number - UNBOUNDED_PORT_START] = new_port;
-	//printf("[INFO] Created unbound port # %d\n", new_port->port_number);
 	set_interrupt_level(interrupt_level);
 
 	return new_port;
 }
 
-//Returns the next available bounded port number on SUCCESS. -1 on FAILURE
+/*
+ * Returns the next available bounded port number on SUCCESS. -1 on FAILURE
+ */
 int get_next_bounded_port_number(){
 	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
-
 	int port_iter = current_bounded_port_number;
 
 	do {
-
 		if(bounded_ports[port_iter - BOUNDED_PORT_START] == NULL){
 			current_bounded_port_number = port_iter + 1;
 			set_interrupt_level(interrupt_level);
 			return port_iter;
-		}
-
-		else if(port_iter > BOUNDED_PORT_LIMIT){
+		} else if (port_iter > BOUNDED_PORT_LIMIT){
 			port_iter = BOUNDED_PORT_START;
-		}
-
-		else{
+		} else {
 			port_iter++;
 		}
 
-	}while(port_iter != current_bounded_port_number);
+	} while(port_iter != current_bounded_port_number);
 
 	set_interrupt_level(interrupt_level);
 	return -1;
@@ -140,40 +136,36 @@ miniport_t miniport_create_bound(network_address_t addr, int remote_unbound_port
 	interrupt_level_t interrupt_level;
 	miniport_t new_port;
 	int bounded_port_num = get_next_bounded_port_number();
-
 	
+	// Sanity checks
 	if(bounded_port_num == -1){
 		printf("[ERROR] All bounded ports in use. Can not create a new one.\n");
 		return NULL;
 	}
-
-	if( remote_unbound_port_number > UNBOUNDED_PORT_LIMIT || remote_unbound_port_number < UNBOUNDED_PORT_START){
+	if(remote_unbound_port_number > UNBOUNDED_PORT_LIMIT || remote_unbound_port_number < UNBOUNDED_PORT_START){
 		printf("[ERROR] Specified remote port number [%d] is out of range.\n", remote_unbound_port_number);
 		return NULL;
 	}
 
-	new_port = (miniport_t) malloc(sizeof(struct miniport));
-	
-	/*If memory allocation fails, return NULL*/
+	// Create port
+	new_port = (miniport_t) malloc(sizeof(struct miniport));	
 	if (new_port == NULL) {
 		printf("[ERROR] Memory allocation for bounded port [%d] failed.\n", bounded_port_num);
 		return NULL;
 	}
 
-	
+	// Initialize port
 	network_address_copy(addr, new_port->port_structure.bound_port.remote_address);
 	new_port->port_structure.bound_port.remote_unbound_port = remote_unbound_port_number;
-
 	new_port->port_type = BOUNDED;
 	new_port->port_number = bounded_port_num;
 	
+	// Synchronized: record new port in array
 	interrupt_level = set_interrupt_level(DISABLED);
 	bounded_ports[bounded_port_num - BOUNDED_PORT_START] = new_port;
-	//printf("[INFO] Created bound port # %d\n", new_port->port_number);
 	set_interrupt_level(interrupt_level);
 
 	return new_port;
-
 }
 
 /* Destroys a miniport and frees up its resources. If the miniport was in use at
@@ -194,12 +186,10 @@ void miniport_destroy(miniport_t miniport)
 		queue_free(miniport->port_structure.unbound_port.incoming_data); 
 		semaphore_destroy(miniport->port_structure.unbound_port.datagrams_ready);
 		unbounded_ports[miniport->port_number - UNBOUNDED_PORT_START] = NULL;
-	} else {
+	} else { // Bounded port
 		bounded_ports[miniport->port_number - BOUNDED_PORT_START] = NULL;
-	}
-	
+	}	
 	set_interrupt_level(interrupt_level);
-
 	free(miniport);
 }
 
@@ -214,10 +204,11 @@ void miniport_destroy(miniport_t miniport)
  */
 int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, minimsg_t msg, int len)
 {
-	int bytes_sent_successfully;
+	int data_bytes_sent_successfully;
 	mini_header_t packet_header;
 	network_address_t local_addr;
 
+	// Validate message and port to send through
 	if(msg == NULL){
 		printf("[ERROR] Cannot send a NULL message\n");
 		return 0;
@@ -239,30 +230,26 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 		return 0;
 	}
 
-	packet_header = (mini_header_t)malloc(sizeof(struct mini_header));
-	
+	// Create packet header
+	packet_header = (mini_header_t)malloc(sizeof(struct mini_header));	
 	if(packet_header == NULL) {
 		printf("[ERROR] Memory allocation for packet header failed\n");
 		return 0;
 	}
 
+	// Initialize packet header
 	packet_header->protocol = PROTOCOL_MINIDATAGRAM;
-
 	pack_unsigned_short(packet_header->source_port, local_unbound_port->port_number);
 	pack_unsigned_short(packet_header->destination_port, local_bound_port->port_structure.bound_port.remote_unbound_port);
-	
-
 	network_get_my_address(local_addr);
 	pack_address(packet_header->source_address, local_addr);
 	pack_address(packet_header->destination_address, local_bound_port->port_structure.bound_port.remote_address);
 
-	
-	//printf("[INFO] Sending message from port %d, to port # %d || reply to port %d\n", local_bound_port->port_number, local_bound_port->port_structure.bound_port.remote_unbound_port,local_unbound_port->port_number);
-	bytes_sent_successfully = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(struct mini_header), (char *)packet_header, len, msg) - sizeof(struct mini_header);
-	bytes_sent_successfully = max(bytes_sent_successfully, 0);
+	// Send packet
+	data_bytes_sent_successfully = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(struct mini_header), (char *)packet_header, len, msg) - sizeof(struct mini_header);
+	data_bytes_sent_successfully = max(data_bytes_sent_successfully - sizeof(struct mini_header), 0);
 	
 	free(packet_header);
-
 	return len;
 }
 
@@ -280,27 +267,26 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 	network_address_t response_address;
 	unsigned int response_port;
 	interrupt_level_t interrupt_level;
-	//printf("[INFO] Entered receive method for port # %d. Blocking until data is available\n", local_unbound_port->port_number);
 
+	// Wait for packet arrival
 	semaphore_P(local_unbound_port->port_structure.unbound_port.datagrams_ready);
 	
-	
+	// Synchronized: Retrieve packet from queue
 	interrupt_level = set_interrupt_level(DISABLED);
 	queue_dequeue(local_unbound_port->port_structure.unbound_port.incoming_data, (void **) &data_received);
 	set_interrupt_level(interrupt_level);
 
+	// Get address and port number
 	unpack_address(data_received->buffer + 1, response_address);
 	response_port = unpack_unsigned_short(data_received->buffer + 9);
 
-	//printf("[INFO] Recieved message on port # %d. Reply back to port # %d\n",local_unbound_port->port_number,response_port);
-
+	// port to send response through
 	*new_local_bound_port = miniport_create_bound(response_address, response_port);
 
+	// Extract message
 	*len = min(max(data_received->size - sizeof(struct mini_header),0),*len);
-	//msg = data_received->buffer + sizeof(struct mini_header);
-	
 	memcpy(msg, data_received->buffer + sizeof(struct mini_header), *len);
-	//printf("[INFO] Message recieved |BEGIN DATA|%s|END DATA|\n", msg);
+
 	free(data_received);
 	return *len;
 
@@ -314,20 +300,25 @@ void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *d
 	network_get_my_address(my_address);
 	unpack_address(header->destination_address, destination_address);
 
+	// Validate packet
 	if(target_port == NULL){
 		printf("[ERROR] Target port %d is null \n", unbound_port_num);
 		free(data);
-	} else if (data->size < sizeof(struct mini_header)) {
+	}
+	if (data->size < sizeof(struct mini_header)) {
 		printf("[ERROR] Packet size is smaller than header \n");
 		free(data);
-	} else if (header->protocol != PROTOCOL_MINIDATAGRAM) {
+	}
+	if (header->protocol != PROTOCOL_MINIDATAGRAM) {
 		printf("[ERROR] Invalid packet protocol \n");
 		free(data);
-	} else if (!network_address_same(destination_address, my_address)) {
+	}
+	if (!network_address_same(destination_address, my_address)) {
 		printf("[ERROR] Received packet not intended for us \n");
 		free(data);
-	} else {
-		queue_append(target_port->port_structure.unbound_port.incoming_data, data);
-		semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 	}
+	// Add packet to port queue
+	queue_append(target_port->port_structure.unbound_port.incoming_data, data);
+	// Signal packet arrival
+	semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 }

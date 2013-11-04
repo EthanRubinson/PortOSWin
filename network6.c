@@ -1,6 +1,6 @@
 /* network test program 6
 
-   send messages back and forth between two processes on different computers
+   Allows two processes to take turns sending chat messages to each other
 
    USAGE: ./minithread <souceport> <destport> [<hostname>]
 
@@ -25,8 +25,11 @@
 #define MAX_COUNT 100
 
 
-char* hostname;
+char* hostname; // the remote host to connect to
 
+/*
+ * Gets a string from the command line.
+ */
 char * getline(void) {
     char *line = malloc(100);
 	char *linep = line;
@@ -61,6 +64,9 @@ char * getline(void) {
     return linep;
 }
 
+/*
+ * First to receive a message.
+ */
 int receive_first(int* arg) {
   char buffer[BUFFER_SIZE];
   int length;
@@ -85,6 +91,9 @@ int receive_first(int* arg) {
   return 0;
 }
 
+/*
+ * First to send a message.
+ */
 int transmit_first(int* arg) {
   char buffer[BUFFER_SIZE];
   int length = BUFFER_SIZE;

@@ -321,18 +321,22 @@ void minithread_yield() {
 }
 
 /*
- * The network handler
+ * The network handler routine. This function is passed
+ * to the call to network_initialize(). This function
+ * will be called for every received packet.
  */
 void network_handler(void* arg)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	unsigned short port_to_process;
+	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
 	if (incomming_data == NULL) {
 		printf("[INFO] Interrupt argument is null \n");
 		set_interrupt_level(intlevel);
 		return;
 	}
+	// Get destination port number
 	port_to_process = unpack_unsigned_short(incomming_data->buffer + 19);
 	//printf("[INFO] Packet received for port # %d. Signaling it...\n", port_to_process);
 	minimsg_process(port_to_process, incomming_data);
@@ -534,6 +538,7 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	current_priority_level = 0;
 	ticks_since_last_level_switch = 0;
 	minithread_clock_init(clock_handler);
+	// Initialize the network interrupt handler and port arrays
 	network_initialize(network_handler);
 	minimsg_initialize();
 	//Reset interrupt levels and begin program execution with the idle_proc
