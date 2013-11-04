@@ -304,21 +304,19 @@ void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *d
 	if(target_port == NULL){
 		printf("[ERROR] Target port %d is null \n", unbound_port_num);
 		free(data);
-	}
-	if (data->size < sizeof(struct mini_header)) {
+	} else if (data->size < sizeof(struct mini_header)) {
 		printf("[ERROR] Packet size is smaller than header \n");
 		free(data);
-	}
-	if (header->protocol != PROTOCOL_MINIDATAGRAM) {
+	} else if (header->protocol != PROTOCOL_MINIDATAGRAM) {
 		printf("[ERROR] Invalid packet protocol \n");
 		free(data);
-	}
-	if (!network_address_same(destination_address, my_address)) {
+	} else if (!network_address_same(destination_address, my_address)) {
 		printf("[ERROR] Received packet not intended for us \n");
 		free(data);
+	} else {
+		// Add packet to port queue
+		queue_append(target_port->port_structure.unbound_port.incoming_data, data);
+		// Signal packet arrival
+		semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 	}
-	// Add packet to port queue
-	queue_append(target_port->port_structure.unbound_port.incoming_data, data);
-	// Signal packet arrival
-	semaphore_V(target_port->port_structure.unbound_port.datagrams_ready);
 }
