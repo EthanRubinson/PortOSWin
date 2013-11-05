@@ -6,13 +6,20 @@
 #include "queue.h"
 #include "synch.h"
 
+/*
+ * Valid port number constants.
+ */
 #define UNBOUNDED_PORT_START 0
 #define UNBOUNDED_PORT_LIMIT 32767
 #define BOUNDED_PORT_START 32768
 #define BOUNDED_PORT_LIMIT 65535
 
+/*enum designated the type of port a miniport is*/
 typedef enum {UNBOUNDED,BOUNDED} port_t;
 
+/*
+ * Miniport structure. 
+ */
 struct miniport { 
 	port_t port_type; 
 	unsigned short port_number; 
@@ -181,17 +188,18 @@ void miniport_destroy(miniport_t miniport)
 	}
 
 	interrupt_level = set_interrupt_level(DISABLED);
-	printf("inside destroy port : %d \n", miniport->port_type);
+
 	if(miniport->port_type == UNBOUNDED) {
-		printf("Freeing unbounded port \n");
 		queue_free(miniport->port_structure.unbound_port.incoming_data); 
 		semaphore_destroy(miniport->port_structure.unbound_port.datagrams_ready);
 		unbounded_ports[miniport->port_number - UNBOUNDED_PORT_START] = NULL;
 	} else { // Bounded port
 		bounded_ports[miniport->port_number - BOUNDED_PORT_START] = NULL;
 	}	
+
 	free(miniport);
 	set_interrupt_level(interrupt_level);
+	
 }
 
 /* Sends a message through a locally bound port (the bound port already has an associated

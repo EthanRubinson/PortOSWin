@@ -85,6 +85,7 @@
   <ItemGroup>
     <ClCompile Include="alarm.c" />
     <ClCompile Include="buffer.c" />
+    <ClCompile Include="Chat_Test.c" />
     <ClCompile Include="end.c" />
     <ClCompile Include="interrupts.c" />
     <ClCompile Include="machineprimitives.c" />
@@ -101,6 +102,7 @@
     <ClCompile Include="network5.c" />
     <ClCompile Include="network6.c" />
     <ClCompile Include="pid_random.c" />
+    <ClCompile Include="port_creation_tests.c" />
     <ClCompile Include="queue.c" />
     <ClCompile Include="queue_test.c" />
     <ClCompile Include="random.c" />

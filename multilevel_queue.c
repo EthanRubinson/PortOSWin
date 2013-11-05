@@ -29,7 +29,7 @@ multilevel_queue_t multilevel_queue_new(int number_of_levels)
 	struct queue_level* current_level;
 	struct queue_level* new_level;
 	int current_priority = 0;
-	int level_loop_counter = 0;
+	int level_loop_counter;
 	queue_t temp_queue;
 
 	if (number_of_levels <= 0) {
@@ -71,7 +71,7 @@ multilevel_queue_t multilevel_queue_new(int number_of_levels)
 	current_level = new_level;
 	
 
-	for(level_loop_counter - 1; level_loop_counter < number_of_levels; level_loop_counter++){
+	for(level_loop_counter = 0; level_loop_counter < number_of_levels; level_loop_counter++){
 		 temp_queue = queue_new();
 		 if(temp_queue == NULL){
 			printf("[ERROR] Multilevel queue initialization failed");

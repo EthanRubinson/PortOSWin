@@ -99,6 +99,12 @@
     <ClCompile Include="minimsg.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="port_creation_tests.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Chat_Test.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="defs.h">
