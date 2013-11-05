@@ -68,9 +68,9 @@ miniport_t miniport_create_unbound(int port_number)
 
 	// Synchronized: Check if port is aleady assigned
 	interrupt_level = set_interrupt_level(DISABLED);
-	if(unbounded_ports[port_number] != NULL){
+	if(unbounded_ports[port_number - UNBOUNDED_PORT_START] != NULL){
 		printf("[INFO] Specified port number [%d] for an unbounded port is already assigned.\n", port_number);
-		temp_port = unbounded_ports[port_number];
+		temp_port = unbounded_ports[port_number - UNBOUNDED_PORT_START];
 		set_interrupt_level(interrupt_level);
 
 		return temp_port;
@@ -176,21 +176,22 @@ void miniport_destroy(miniport_t miniport)
 	interrupt_level_t interrupt_level;
 
 	if(miniport == NULL) {
-		printf("[ERROR] Cannot destroy a NULL port");
+		printf("[ERROR] Cannot destroy a NULL port \n");
 		return;
 	}
 
 	interrupt_level = set_interrupt_level(DISABLED);
-	
-	if(miniport->port_type = UNBOUNDED) {
+	printf("inside destroy port : %d \n", miniport->port_type);
+	if(miniport->port_type == UNBOUNDED) {
+		printf("Freeing unbounded port \n");
 		queue_free(miniport->port_structure.unbound_port.incoming_data); 
 		semaphore_destroy(miniport->port_structure.unbound_port.datagrams_ready);
 		unbounded_ports[miniport->port_number - UNBOUNDED_PORT_START] = NULL;
 	} else { // Bounded port
 		bounded_ports[miniport->port_number - BOUNDED_PORT_START] = NULL;
 	}	
-	set_interrupt_level(interrupt_level);
 	free(miniport);
+	set_interrupt_level(interrupt_level);
 }
 
 /* Sends a message through a locally bound port (the bound port already has an associated
@@ -217,19 +218,20 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 		printf("[ERROR] Cannot send a message of length 0\n");
 		return 0;
 	}
-	if(local_bound_port == NULL){
-		printf("[ERROR] Local bound (sending) port cannot be NULL\n");
-		return 0;
-	}
-	if(local_unbound_port == NULL){
-		printf("[ERROR] Local unbounded (listening) port cannot be NULL\n");
-		return 0;
-	}
 	if(len > MINIMSG_MAX_MSG_SIZE){
 		printf("[ERROR] Size of message cannot exceed %d bytes\n", MINIMSG_MAX_MSG_SIZE);
 		return 0;
 	}
-
+	if(local_bound_port == NULL || bounded_ports[local_bound_port->port_number - BOUNDED_PORT_START] == NULL){
+		printf("[ERROR] Local bound (sending) port is not initialized \n");
+		return 0;
+	}
+	if(local_unbound_port == NULL || unbounded_ports[local_unbound_port->port_number - UNBOUNDED_PORT_START] == NULL){
+		printf("[ERROR] Local unbounded (listening) port is not initialized \n");
+		return 0;
+	}
+	
+	
 	// Create packet header
 	packet_header = (mini_header_t)malloc(sizeof(struct mini_header));	
 	if(packet_header == NULL) {
@@ -268,6 +270,11 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 	unsigned int response_port;
 	interrupt_level_t interrupt_level;
 
+	if (local_unbound_port == NULL || unbounded_ports[local_unbound_port->port_number - UNBOUNDED_PORT_START] == NULL) {
+		printf("[ERROR] Cannot read from an uninitialized port");
+		return 0;
+	}
+
 	// Wait for packet arrival
 	semaphore_P(local_unbound_port->port_structure.unbound_port.datagrams_ready);
 	
@@ -293,7 +300,7 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 }
 
 void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *data){
-	miniport_t target_port = unbounded_ports[unbound_port_num];
+	miniport_t target_port = unbounded_ports[unbound_port_num - UNBOUNDED_PORT_START];
 	mini_header_t header = (mini_header_t) data->buffer;
 	network_address_t destination_address;
 	network_address_t my_address;
