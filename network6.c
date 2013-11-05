@@ -1,6 +1,6 @@
 /* network test program 6
 
-   Allows two processes to take turns sending chat messages to each other
+   send messages back and forth between two processes on different computers
 
    USAGE: ./minithread <souceport> <destport> [<hostname>]
 
@@ -25,48 +25,9 @@
 #define MAX_COUNT 100
 
 
-char* hostname; // the remote host to connect to
+char* hostname;
 
-/*
- * Gets a string from the command line.
- */
-char * getline(void) {
-    char *line = malloc(100);
-	char *linep = line;
-	char *linen;
-    size_t lenmax = 100, len = lenmax;
-    int c;
 
-    if(line == NULL)
-        return NULL;
-
-    for(;;) {
-        c = fgetc(stdin);
-        if(c == EOF)
-            break;
-
-        if(--len == 0) {
-            len = lenmax;
-            linen = realloc(linep, lenmax *= 2);
-
-            if(linen == NULL) {
-                free(linep);
-                return NULL;
-            }
-            line = linen + (line - linep);
-            linep = linen;
-        }
-
-        if((*line++ = c) == '\n')
-            break;
-    }
-    *line = '\0';
-    return linep;
-}
-
-/*
- * First to receive a message.
- */
 int receive_first(int* arg) {
   char buffer[BUFFER_SIZE];
   int length;
@@ -78,11 +39,10 @@ int receive_first(int* arg) {
 
   for (i=0; i<MAX_COUNT; i++) {
     length = BUFFER_SIZE;
-	printf("Receiving message... \n");
     minimsg_receive(port, &from, buffer, &length);
     printf("%s", buffer);
-    printf("Enter message to send: \n");
-    sprintf(buffer, getline());
+    printf("Sending packet %d.\n", i+1);
+    sprintf(buffer, "Received packet %d.\n", i+1);
     length = strlen(buffer) + 1;
     minimsg_send(port, from, buffer, length);
     miniport_destroy(from);
@@ -91,9 +51,6 @@ int receive_first(int* arg) {
   return 0;
 }
 
-/*
- * First to send a message.
- */
 int transmit_first(int* arg) {
   char buffer[BUFFER_SIZE];
   int length = BUFFER_SIZE;
@@ -110,12 +67,11 @@ int transmit_first(int* arg) {
   dest = miniport_create_bound(addr, 1);
 
   for (i=0; i<MAX_COUNT; i++) {
-    printf("Enter message to send: \n");
-    sprintf(buffer, getline());
+    printf("Sending packet %d.\n", i+1);
+    sprintf(buffer, "Received packet %d.\n", i+1);
     length = strlen(buffer) + 1;
     minimsg_send(port, dest, buffer, length);
     length = BUFFER_SIZE;
-	printf("Waiting for message: \n");
     minimsg_receive(port, &from, buffer, &length);
     printf("%s", buffer);
     miniport_destroy(from);
