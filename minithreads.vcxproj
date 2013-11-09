@@ -86,12 +86,16 @@
     <ClCompile Include="alarm.c" />
     <ClCompile Include="buffer.c" />
     <ClCompile Include="Chat_Test.c" />
+    <ClCompile Include="conn-network1.c" />
+    <ClCompile Include="conn-network2.c" />
+    <ClCompile Include="conn-network3.c" />
     <ClCompile Include="end.c" />
     <ClCompile Include="interrupts.c" />
     <ClCompile Include="machineprimitives.c" />
     <ClCompile Include="machineprimitives_x86.c" />
     <ClCompile Include="miniheader.c" />
     <ClCompile Include="minimsg.c" />
+    <ClCompile Include="minisocket.c" />
     <ClCompile Include="minithread.c" />
     <ClCompile Include="multilevel_queue.c" />
     <ClCompile Include="network.c" />
@@ -122,6 +126,7 @@
     <ClInclude Include="machineprimitives.h" />
     <ClInclude Include="miniheader.h" />
     <ClInclude Include="minimsg.h" />
+    <ClInclude Include="minisocket.h" />
     <ClInclude Include="minithread.h" />
     <ClInclude Include="multilevel_queue.h" />
     <ClInclude Include="network.h" />

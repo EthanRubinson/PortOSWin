@@ -105,6 +105,18 @@
     <ClCompile Include="Chat_Test.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="conn-network3.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="minisocket.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="conn-network1.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="conn-network2.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="defs.h">
@@ -147,6 +159,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="minimsg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="minisocket.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
