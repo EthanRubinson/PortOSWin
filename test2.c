@@ -11,14 +11,14 @@
 
 int thread3(int* arg) {
   printf("Thread 3.\n");
-  while(1){}
+
   return 0;
 }
 
 int thread2(int* arg) {
   minithread_t thread = minithread_fork(thread3, NULL);
   printf("Thread 2.\n");
-  while(1){}
+  minithread_yield();
 
   return 0;
 }
@@ -26,7 +26,8 @@ int thread2(int* arg) {
 int thread1(int* arg) {
   minithread_t thread = minithread_fork(thread2, NULL);
   printf("Thread 1.\n");
-  while(1){}
+  minithread_yield();
+  minithread_yield();
 
   return 0;
 }
