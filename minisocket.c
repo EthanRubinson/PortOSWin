@@ -2,12 +2,70 @@
  *	Implementation of minisockets.
  */
 #include "minisocket.h"
+#include "minimsg.h"
+#include "synch.h"
+#include "minithread.h"
+
+
+struct mini_socket_lock{
+	semaphore_t data_lock;
+	int num_threads_blocked;
+	int should_terminate;
+};
 
 struct minisocket
 {
-  int dummy; /* delete this field */
-  /* put your definition of minisockets here */
+  struct mini_socket_lock* socket_lock;
+  int port_number;
+  socket_t socket_type;
 };
+
+/*
+ * Valid socket number constants.
+ */
+#define SERVER_SOCKET_START 0
+#define SERVER_SOCKET_LIMIT 32767
+#define CLIENT_SOCKET_START 32768
+#define CLIENT_SOCKET_LIMIT 65535
+
+/*enum designated the type of socket a minisocket is*/
+typedef enum {SERVER,CLIENT} socket_t;
+
+// Socket arrays
+minisocket_t server_sockets[SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1];
+minisocket_t client_sockets[CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1];
+semaphore_t server_socket_modification_locks[SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1];
+semaphore_t client_socket_modification_locks[CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1];
+
+void broadcast_socket_close_signal(minisocket_t socket_to_close){
+	semaphore_t minisocket_lock;
+
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+	if(socket_to_close->socket_type == SERVER){
+		minisocket_lock = server_socket_modification_locks[socket_to_close->port_number - SERVER_SOCKET_START];	
+	}
+	else{
+		minisocket_lock = client_socket_modification_locks[socket_to_close->port_number - SERVER_SOCKET_START];	
+	}
+	set_interrupt_level(interrupt_level);
+
+	semaphore_P(minisocket_lock);
+	
+	//Ensure that the socket is not already closed
+	if(socket_to_close->socket_lock->should_terminate == 1){
+		printf("[INFO] Socket at port %d is already marked for closure", socket_to_close->port_number);
+		semaphore_V(minisocket_lock);
+		return;
+	}
+
+	socket_to_close->socket_lock->should_terminate = 1;
+	for(int i = 0; i< socket_to_close->socket_lock->num_threads_blocked; i++) {
+		semaphore_V(socket_to_close->socket_lock->data_lock);
+	}
+
+	semaphore_V(minisocket_lock);
+
+}
 
 /* Initializes the minisocket layer. */
 void minisocket_initialize()
@@ -98,5 +156,54 @@ int minisocket_receive(minisocket_t socket, minimsg_t msg, int max_len, minisock
  */
 void minisocket_close(minisocket_t socket)
 {
+	semaphore_t minisocket_lock;
 
+	if(socket == NULL){
+		printf("[ERROR] Can't close socket. Socket is NULL");
+		return;
+	}
+
+
+	//Broadcast the stop signal
+	broadcast_socket_close_signal(socket);
+
+	
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+	if(socket->socket_type == SERVER){
+		minisocket_lock = server_socket_modification_locks[socket->port_number - SERVER_SOCKET_START];	
+	}
+	else{
+		minisocket_lock = client_socket_modification_locks[socket->port_number - SERVER_SOCKET_START];	
+	}
+	set_interrupt_level(interrupt_level);
+	
+	
+	semaphore_P(minisocket_lock);
+	socket->socket_lock->should_terminate = 1;	
+
+	//Wait for the blocked threads to exit the send/recieve
+	while(socket->socket_lock->num_threads_blocked > 0){
+		semaphore_V(minisocket_lock);
+		minithread_yield();
+		semaphore_P(minisocket_lock);
+	}
+
+
+	//Destroy the socket / free corresponding structures
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+
+	if(socket->socket_type == SERVER){
+		server_sockets[socket->port_number - SERVER_SOCKET_START] = NULL;	
+	}
+	else{
+		server_sockets[socket->port_number - CLIENT_SOCKET_START] = NULL;		
+	}
+	set_interrupt_level(interrupt_level);
+	
+	semaphore_destroy(socket->socket_lock->data_lock);
+	free(socket->socket_lock);
+	free(socket);
+
+	semaphore_V(minisocket_lock);
+	
 }
