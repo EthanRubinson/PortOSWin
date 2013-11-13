@@ -2,22 +2,33 @@
  *	Implementation of minisockets.
  */
 #include "minisocket.h"
-#include "minimsg.h"
+#include "miniheader.h"
 #include "synch.h"
 #include "minithread.h"
+#include "queue.h"
 
 
-struct mini_socket_lock{
-	semaphore_t data_lock;
-	int num_threads_blocked;
-	int should_terminate;
-};
+/*enum designated the type of socket a minisocket is*/
+typedef enum {SERVER,CLIENT} socket_t;
+typedef enum {READY,NOT_READY} status_t;
 
 struct minisocket
 {
-  struct mini_socket_lock* socket_lock;
-  int port_number;
-  socket_t socket_type;
+	semaphore_t data_lock;
+	queue_t data_queue;
+
+	int num_threads_blocked;
+	int should_terminate;
+	status_t port_status;
+
+	unsigned short port_number;
+	int ack_num;
+	int seq_num;
+
+	unsigned short remote_port_number;
+	network_address_t remote_address;
+
+	socket_t socket_type;
 };
 
 /*
@@ -28,8 +39,6 @@ struct minisocket
 #define CLIENT_SOCKET_START 32768
 #define CLIENT_SOCKET_LIMIT 65535
 
-/*enum designated the type of socket a minisocket is*/
-typedef enum {SERVER,CLIENT} socket_t;
 
 // Socket arrays
 minisocket_t server_sockets[SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1];
@@ -52,15 +61,15 @@ void broadcast_socket_close_signal(minisocket_t socket_to_close){
 	semaphore_P(minisocket_lock);
 	
 	//Ensure that the socket is not already closed
-	if(socket_to_close->socket_lock->should_terminate == 1){
+	if(socket_to_close->should_terminate == 1){
 		printf("[INFO] Socket at port %d is already marked for closure", socket_to_close->port_number);
 		semaphore_V(minisocket_lock);
 		return;
 	}
 
-	socket_to_close->socket_lock->should_terminate = 1;
-	for(int i = 0; i< socket_to_close->socket_lock->num_threads_blocked; i++) {
-		semaphore_V(socket_to_close->socket_lock->data_lock);
+	socket_to_close->should_terminate = 1;
+	for(int i = 0; i< socket_to_close->num_threads_blocked; i++) {
+		semaphore_V(socket_to_close->data_lock);
 	}
 
 	semaphore_V(minisocket_lock);
@@ -70,6 +79,20 @@ void broadcast_socket_close_signal(minisocket_t socket_to_close){
 /* Initializes the minisocket layer. */
 void minisocket_initialize()
 {
+	int loop_counter;
+	// Initialize socket arrays
+	memset(server_sockets, 0, sizeof(server_sockets));
+	memset(client_sockets, 0, sizeof(client_sockets));
+
+	for (loop_counter = 0; loop_counter < SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1; loop_counter++){
+		server_socket_modification_locks[loop_counter] = semaphore_create();
+		semaphore_initialize(server_socket_modification_locks[loop_counter], 1 );
+
+	}
+	for (loop_counter = 0; loop_counter < CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1; loop_counter++){
+		client_socket_modification_locks[loop_counter] = semaphore_create();
+		semaphore_initialize(client_socket_modification_locks[loop_counter], 1 );
+	}
 
 }
 
@@ -86,7 +109,133 @@ void minisocket_initialize()
  */
 minisocket_t minisocket_server_create(int port, minisocket_error *error)
 {
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+	minisocket_t new_socket;
+	semaphore_t socket_lock;
+	int should_terminate;
+	int connection_established = 0;
+	network_interrupt_arg_t *data_received;
 
+	*error = SOCKET_NOERROR;
+
+	if (port < SERVER_SOCKET_START || port > SERVER_SOCKET_LIMIT) {
+		printf("[ERROR] Failed to create server socket, port [%d] out of range.\n", port);
+		*error = SOCKET_INVALIDPARAMS;
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	if (server_sockets[port - SERVER_SOCKET_START] != NULL) {
+		printf("[ERROR] Failed to create server socket, port [%d] in use.\n", port);
+		*error = SOCKET_PORTINUSE;
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	new_socket = (minisocket_t) malloc(sizeof(struct minisocket));
+	if (new_socket == NULL) {
+		printf("[ERROR] Memory allocation for server socket [%d] failed.\n", port);
+		*error = SOCKET_OUTOFMEMORY;
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+
+	new_socket->data_lock = semaphore_create();
+	if (new_socket->data_lock == NULL) {
+		printf("[ERROR] Server socket initialization failed (Out of memory).\n", port);
+		*error = SOCKET_OUTOFMEMORY;
+		free(new_socket);
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	new_socket->data_queue = queue_new();
+	if (new_socket->data_queue == NULL) {
+		printf("[ERROR] Server socket initialization failed (Out of memory).\n", port);
+		*error = SOCKET_OUTOFMEMORY;
+		semaphore_destroy(new_socket->data_lock);
+		free(new_socket);
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+
+	semaphore_initialize(new_socket->data_lock, 0);
+	new_socket->num_threads_blocked = 0;
+	new_socket->should_terminate = 0;
+	new_socket->port_number = port;
+	new_socket->socket_type = SERVER;
+	new_socket->ack_num = 0;
+	new_socket->seq_num = 1;
+	new_socket->port_status = NOT_READY;
+
+	new_socket->num_threads_blocked++;
+
+	server_sockets[port - SERVER_SOCKET_START] = new_socket;
+
+	socket_lock = server_socket_modification_locks[port - SERVER_SOCKET_START];
+	set_interrupt_level(interrupt_level);
+
+	//Get handshake
+	
+	//While recieved is not a SYN, keep waiting (as long as we should not terminate)
+
+	semaphore_P(socket_lock);
+	should_terminate = new_socket->should_terminate;
+	semaphore_V(socket_lock);
+
+	while (connection_established == 0 && should_terminate == 0) {
+		semaphore_P(new_socket->data_lock);
+
+		//Retrieve packet from queue
+		interrupt_level = set_interrupt_level(DISABLED);
+		queue_dequeue(new_socket->data_queue, (void **) &data_received);
+		set_interrupt_level(interrupt_level);
+		
+		//We got the SYN
+		if(*(data_received->buffer + 21) == MSG_SYN){
+
+			/*for(int i = 0; i < 7; i++) {
+				send(synack(1,1));
+				alarm_id = create_alarm(timeout = 2^i, signal(data_lock));
+				if(receive(ack(1,1)) within timeout) {
+					//disable interrupts
+					if(alarm_id != NULL){
+						deregister(alarm_id)
+					}
+					//re-enable interrupts
+
+					//proccess data
+					connection_established = 1;
+					break;	
+				}
+									
+			} 
+			*/
+
+		}	
+
+		//else (do nothing)
+		semaphore_P(socket_lock);
+		should_terminate = new_socket->should_terminate;
+		semaphore_V(socket_lock);
+	}
+	//When we do recieve a SYN, send a SYN_ACK, wait for ACK, and return
+
+	semaphore_P(socket_lock);
+	new_socket->num_threads_blocked--;
+	semaphore_V(socket_lock);
+
+	if(should_terminate == 1){
+		printf("[INFO] Socket was closed before the connection could be established");
+		return NULL;
+	}
+
+	else{
+		return new_socket;
+	}
+	
 }
 
 
@@ -179,10 +328,10 @@ void minisocket_close(minisocket_t socket)
 	
 	
 	semaphore_P(minisocket_lock);
-	socket->socket_lock->should_terminate = 1;	
+	socket->should_terminate = 1;	
 
 	//Wait for the blocked threads to exit the send/recieve
-	while(socket->socket_lock->num_threads_blocked > 0){
+	while(socket->num_threads_blocked > 0){
 		semaphore_V(minisocket_lock);
 		minithread_yield();
 		semaphore_P(minisocket_lock);
@@ -200,8 +349,7 @@ void minisocket_close(minisocket_t socket)
 	}
 	set_interrupt_level(interrupt_level);
 	
-	semaphore_destroy(socket->socket_lock->data_lock);
-	free(socket->socket_lock);
+	semaphore_destroy(socket->data_lock);
 	free(socket);
 
 	semaphore_V(minisocket_lock);
