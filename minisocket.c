@@ -6,6 +6,7 @@
 #include "synch.h"
 #include "minithread.h"
 #include "queue.h"
+#include "alarm.h"
 
 
 /*enum designated the type of socket a minisocket is*/
@@ -282,6 +283,126 @@ int minisocket_send(minisocket_t socket, minimsg_t msg, int len, minisocket_erro
 {
 
 }
+
+
+int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t msg, int len, char type){
+	int bytes_sent_successfully;
+	mini_header_reliable_t packet_header;
+	network_address_t local_addr;
+	interrupt_level_t interrupt_level;
+	network_interrupt_arg_t *data_received;
+	int num_retries;
+
+	// Validate message and port to send through
+	if(msg == NULL){
+		printf("[ERROR] Cannot send a NULL message\n");
+		return 0;
+	}
+	if(len == 0){
+		printf("[ERROR] Cannot send a message of length 0\n");
+		return 0;
+	}
+	if(len > MINIMSG_MAX_MSG_SIZE){
+		printf("[ERROR] Size of message cannot exceed %d bytes\n", MINIMSG_MAX_MSG_SIZE);
+		return 0;
+	}
+	if(socket == NULL || socket->port_status == NOT_READY){
+		printf("[ERROR] Socket is not initialized\n");
+		return 0;
+	}
+	
+	interrupt_level = set_interrupt_level(DISABLED);
+	if( (socket->socket_type == SERVER && server_sockets[socket->port_number - SERVER_SOCKET_START] != NULL) || (socket->socket_type == CLIENT && client_sockets[socket->port_number - CLIENT_SOCKET_START] != NULL)){
+		printf("[ERROR] Socket is not initialized\n");
+		set_interrupt_level(interrupt_level);
+		return 0;
+	}
+	set_interrupt_level(interrupt_level);
+
+	// Create packet header
+	packet_header = (mini_header_reliable_t)malloc(sizeof(struct mini_header_reliable));	
+	if(packet_header == NULL) {
+		printf("[ERROR] Memory allocation for packet header failed\n");
+		return 0;
+	}
+
+	// Initialize packet header
+	packet_header->protocol = PROTOCOL_MINISTREAM;
+	
+	network_get_my_address(local_addr);
+	pack_address(packet_header->source_address, local_addr);
+
+	pack_unsigned_short(packet_header->source_port, socket->port_number);
+
+	pack_address(packet_header->destination_address, socket->remote_address);
+
+	pack_unsigned_short(packet_header->destination_port, socket->remote_port_number);
+
+	packet_header->message_type = type;
+
+	pack_unsigned_short(packet_header->seq_number, socket->seq_num);
+	pack_unsigned_short(packet_header->ack_number, socket->ack_num);
+
+
+	for(num_retries = 0; num_retries < 7; num_retries++){
+
+		// Send packet
+		bytes_sent_successfully = network_send_pkt(socket->remote_address, sizeof(struct mini_header_reliable), (char *)packet_header, len, msg) - sizeof(struct mini_header_reliable);
+		bytes_sent_successfully = max(bytes_sent_successfully, 0);	
+		
+		register_alarm(100 * 2^num_retries, force_receive_to_exit, socket);
+		semaphore_P(socket->data_lock);
+
+		//Retrieve packet from queue
+		interrupt_level = set_interrupt_level(DISABLED);
+		queue_dequeue(socket->data_queue, (void **) &data_received);
+		set_interrupt_level(interrupt_level);
+		
+		if(data_received == NULL){
+			continue;
+		}
+
+		//Check for the appropriate ack
+		if(*(data_received->buffer + 21) == MSG_ACK){
+			//Check that the ack number matches our current socket's seq number
+			if(unpack_unsigned_int(data_received->buffer + 26) != socket->seq_num){
+				continue;
+			}
+			else{
+				free(packet_header);
+				return bytes_sent_successfully;
+			}
+		}		
+	}
+
+	free(packet_header);
+	return -1;
+}
+
+void force_receive_to_exit(void* socket){
+	semaphore_V(((minisocket_t)socket)->data_lock);
+}
+
+/*
+typedef struct mini_header_reliable
+{
+	char protocol;
+
+	char source_address[8];
+	char source_port[2];
+
+	char destination_address[8];
+	char destination_port[2];
+	
+	char message_type;
+	char seq_number[4];
+	char ack_number[4];
+
+} *mini_header_reliable_t;
+*/
+
+
+
 
 /*
  * Receive a message from the other end of the socket. Blocks until

@@ -260,7 +260,7 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 	bytes_sent_successfully = max(bytes_sent_successfully, 0);
 	
 	free(packet_header);
-	return len;
+	return bytes_sent_successfully;
 }
 
 /* Receives a message through a locally unbound port. Threads that call this function are
