@@ -44,57 +44,34 @@ struct minisocket
 // Socket arrays
 minisocket_t server_sockets[SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1];
 minisocket_t client_sockets[CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1];
-semaphore_t server_socket_modification_locks[SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1];
-semaphore_t client_socket_modification_locks[CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1];
 
+//Broadcasts a terminate signal to all sockets that are blocked on the data_lock
 void broadcast_socket_close_signal(minisocket_t socket_to_close){
-	semaphore_t minisocket_lock;
-
-	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
-	if(socket_to_close->socket_type == SERVER){
-		minisocket_lock = server_socket_modification_locks[socket_to_close->port_number - SERVER_SOCKET_START];	
-	}
-	else{
-		minisocket_lock = client_socket_modification_locks[socket_to_close->port_number - SERVER_SOCKET_START];	
-	}
-	set_interrupt_level(interrupt_level);
-
-	semaphore_P(minisocket_lock);
 	
-	//Ensure that the socket is not already closed
-	if(socket_to_close->should_terminate == 1){
-		printf("[INFO] Socket at port %d is already marked for closure", socket_to_close->port_number);
-		semaphore_V(minisocket_lock);
+	if(socket_to_close == NULL){
+		printf("[INFO] Cannot close sockt, socket is NULL");
 		return;
 	}
 
+	//Ensure that the socket is not already closed
+	if(socket_to_close->should_terminate == 1){
+		printf("[INFO] Socket at port %d is already marked for closure", socket_to_close->port_number);
+		return;
+	}
+
+	//Signal all remaining (blocked) threads to terminate
 	socket_to_close->should_terminate = 1;
 	for(int i = 0; i< socket_to_close->num_threads_blocked; i++) {
 		semaphore_V(socket_to_close->data_lock);
 	}
-
-	semaphore_V(minisocket_lock);
-
 }
 
 /* Initializes the minisocket layer. */
 void minisocket_initialize()
 {
-	int loop_counter;
 	// Initialize socket arrays
 	memset(server_sockets, 0, sizeof(server_sockets));
 	memset(client_sockets, 0, sizeof(client_sockets));
-
-	for (loop_counter = 0; loop_counter < SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1; loop_counter++){
-		server_socket_modification_locks[loop_counter] = semaphore_create();
-		semaphore_initialize(server_socket_modification_locks[loop_counter], 1 );
-
-	}
-	for (loop_counter = 0; loop_counter < CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1; loop_counter++){
-		client_socket_modification_locks[loop_counter] = semaphore_create();
-		semaphore_initialize(client_socket_modification_locks[loop_counter], 1 );
-	}
-
 }
 
 /* 
@@ -112,7 +89,6 @@ minisocket_t minisocket_server_create(int port, minisocket_error *error)
 {
 	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
 	minisocket_t new_socket;
-	semaphore_t socket_lock;
 	int should_terminate;
 	int connection_established = 0;
 	network_interrupt_arg_t *data_received;
@@ -140,7 +116,6 @@ minisocket_t minisocket_server_create(int port, minisocket_error *error)
 		set_interrupt_level(interrupt_level);
 		return NULL;
 	}
-
 
 	new_socket->data_lock = semaphore_create();
 	if (new_socket->data_lock == NULL) {
@@ -170,29 +145,22 @@ minisocket_t minisocket_server_create(int port, minisocket_error *error)
 	new_socket->ack_num = 0;
 	new_socket->seq_num = 1;
 	new_socket->port_status = NOT_READY;
-
 	new_socket->num_threads_blocked++;
-
 	server_sockets[port - SERVER_SOCKET_START] = new_socket;
-
-	socket_lock = server_socket_modification_locks[port - SERVER_SOCKET_START];
+	
+	should_terminate = new_socket->should_terminate;
 	set_interrupt_level(interrupt_level);
 
 	//Get handshake
 	
 	//While recieved is not a SYN, keep waiting (as long as we should not terminate)
-
-	semaphore_P(socket_lock);
-	should_terminate = new_socket->should_terminate;
-	semaphore_V(socket_lock);
-
 	while (connection_established == 0 && should_terminate == 0) {
 		semaphore_P(new_socket->data_lock);
 
-		//Retrieve packet from queue
+		//Process received packet
 		interrupt_level = set_interrupt_level(DISABLED);
 		queue_dequeue(new_socket->data_queue, (void **) &data_received);
-		set_interrupt_level(interrupt_level);
+		
 		
 		//We got the SYN
 		if(*(data_received->buffer + 21) == MSG_SYN){
@@ -218,22 +186,23 @@ minisocket_t minisocket_server_create(int port, minisocket_error *error)
 		}	
 
 		//else (do nothing)
-		semaphore_P(socket_lock);
+		
 		should_terminate = new_socket->should_terminate;
-		semaphore_V(socket_lock);
+		set_interrupt_level(interrupt_level);
 	}
+
 	//When we do recieve a SYN, send a SYN_ACK, wait for ACK, and return
-
-	semaphore_P(socket_lock);
+	interrupt_level = set_interrupt_level(DISABLED);
 	new_socket->num_threads_blocked--;
-	semaphore_V(socket_lock);
-
+	
 	if(should_terminate == 1){
 		printf("[INFO] Socket was closed before the connection could be established");
+		set_interrupt_level(interrupt_level);
 		return NULL;
 	}
 
 	else{
+		set_interrupt_level(interrupt_level);
 		return new_socket;
 	}
 	
@@ -426,53 +395,38 @@ int minisocket_receive(minisocket_t socket, minimsg_t msg, int max_len, minisock
  */
 void minisocket_close(minisocket_t socket)
 {
-	semaphore_t minisocket_lock;
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+	int current_blocked_threads = socket->num_threads_blocked;
 
 	if(socket == NULL){
 		printf("[ERROR] Can't close socket. Socket is NULL");
 		return;
 	}
 
-
 	//Broadcast the stop signal
-	broadcast_socket_close_signal(socket);
-
-	
-	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
-	if(socket->socket_type == SERVER){
-		minisocket_lock = server_socket_modification_locks[socket->port_number - SERVER_SOCKET_START];	
-	}
-	else{
-		minisocket_lock = client_socket_modification_locks[socket->port_number - SERVER_SOCKET_START];	
-	}
+	broadcast_socket_close_signal(socket);	
 	set_interrupt_level(interrupt_level);
-	
-	
-	semaphore_P(minisocket_lock);
-	socket->should_terminate = 1;	
 
 	//Wait for the blocked threads to exit the send/recieve
-	while(socket->num_threads_blocked > 0){
-		semaphore_V(minisocket_lock);
+	while(current_blocked_threads > 0){
 		minithread_yield();
-		semaphore_P(minisocket_lock);
+
+		interrupt_level = set_interrupt_level(DISABLED);
+		current_blocked_threads = socket->num_threads_blocked;
+		set_interrupt_level(interrupt_level);
 	}
 
 
 	//Destroy the socket / free corresponding structures
-	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
-
+	interrupt_level = set_interrupt_level(DISABLED);
 	if(socket->socket_type == SERVER){
-		server_sockets[socket->port_number - SERVER_SOCKET_START] = NULL;	
+		server_sockets[socket->port_number - SERVER_SOCKET_START] = NULL;
 	}
 	else{
-		server_sockets[socket->port_number - CLIENT_SOCKET_START] = NULL;		
+		client_sockets[socket->port_number - SERVER_SOCKET_START] = NULL;
 	}
-	set_interrupt_level(interrupt_level);
-	
 	semaphore_destroy(socket->data_lock);
 	free(socket);
-
-	semaphore_V(minisocket_lock);
+	set_interrupt_level(interrupt_level);
 	
 }
