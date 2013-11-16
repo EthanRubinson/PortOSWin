@@ -44,6 +44,29 @@ struct minisocket
 // Socket arrays
 minisocket_t server_sockets[SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1];
 minisocket_t client_sockets[CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1];
+int current_client_socket_number;
+
+int get_next_client_socket_number(){
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+	int port_iter = current_client_socket_number;
+
+	do {
+		if(client_sockets[port_iter - CLIENT_SOCKET_START] == NULL){
+			current_client_socket_number = port_iter + 1;
+			set_interrupt_level(interrupt_level);
+			return port_iter;
+		} else if (port_iter > CLIENT_SOCKET_LIMIT){
+			port_iter = CLIENT_SOCKET_START;
+		} else {
+			port_iter++;
+		}
+
+	} while(port_iter != current_client_socket_number);
+
+	set_interrupt_level(interrupt_level);
+	return -1;
+}
+
 
 //Broadcasts a terminate signal to all sockets that are blocked on the data_lock
 void broadcast_socket_close_signal(minisocket_t socket_to_close){
@@ -69,6 +92,7 @@ void broadcast_socket_close_signal(minisocket_t socket_to_close){
 /* Initializes the minisocket layer. */
 void minisocket_initialize()
 {
+	current_client_socket_number = CLIENT_SOCKET_START;
 	// Initialize socket arrays
 	memset(server_sockets, 0, sizeof(server_sockets));
 	memset(client_sockets, 0, sizeof(client_sockets));
@@ -136,7 +160,6 @@ minisocket_t minisocket_server_create(int port, minisocket_error *error)
 		return NULL;
 	}
 
-
 	semaphore_initialize(new_socket->data_lock, 0);
 	new_socket->num_threads_blocked = 0;
 	new_socket->should_terminate = 0;
@@ -145,66 +168,51 @@ minisocket_t minisocket_server_create(int port, minisocket_error *error)
 	new_socket->ack_num = 0;
 	new_socket->seq_num = 1;
 	new_socket->port_status = NOT_READY;
-	new_socket->num_threads_blocked++;
 	server_sockets[port - SERVER_SOCKET_START] = new_socket;
-	
-	should_terminate = new_socket->should_terminate;
+
+	new_socket->num_threads_blocked++;
 	set_interrupt_level(interrupt_level);
 
 	//Get handshake
-	
-	//While recieved is not a SYN, keep waiting (as long as we should not terminate)
-	while (connection_established == 0 && should_terminate == 0) {
+	//While recieved packet is not a SYN, keep waiting (as long as we should not terminate)
+	while (connection_established == 0) {
 		semaphore_P(new_socket->data_lock);
 
-		//Process received packet
+		//Process received packet		
+		if(new_socket->should_terminate == 1){
+			printf("[INFO] Socket was closed before the connection could be established");
+			return NULL;
+		}
+		
 		interrupt_level = set_interrupt_level(DISABLED);
 		queue_dequeue(new_socket->data_queue, (void **) &data_received);
-		
-		
+		set_interrupt_level(interrupt_level);
+
+
 		//We got the SYN
 		if(*(data_received->buffer + 21) == MSG_SYN){
+			//Unpack the remote address/port/seq/ack
+			if(unpack_unsigned_int(data_received->buffer + 26) == new_socket->ack_num + 1 && unpack_unsigned_int(data_received->buffer + 30) == 0) /*seq #*/{
+				unpack_address(data_received->buffer + 1,new_socket->remote_address);
+				new_socket->remote_port_number = unpack_unsigned_short(data_received->buffer + 9);
+				new_socket->ack_num++;
 
-			/*for(int i = 0; i < 7; i++) {
-				send(synack(1,1));
-				alarm_id = create_alarm(timeout = 2^i, signal(data_lock));
-				if(receive(ack(1,1)) within timeout) {
-					//disable interrupts
-					if(alarm_id != NULL){
-						deregister(alarm_id)
-					}
-					//re-enable interrupts
-
-					//proccess data
+				if( minisocket_send_packet_with_retransmission(new_socket, "This is a SYN_ACK\n", 18, MSG_SYNACK) > 0 ){
+					new_socket->seq_num++;
 					connection_established = 1;
-					break;	
+					new_socket->port_status = READY;
+					printf("[INFO] Connection established with client\n");
 				}
-									
-			} 
-			*/
-
+				else{ //Reset the socket's ack
+					new_socket->ack_num = 0;
+				}
+			}
 		}	
-
-		//else (do nothing)
 		
-		should_terminate = new_socket->should_terminate;
-		set_interrupt_level(interrupt_level);
 	}
 
-	//When we do recieve a SYN, send a SYN_ACK, wait for ACK, and return
-	interrupt_level = set_interrupt_level(DISABLED);
 	new_socket->num_threads_blocked--;
-	
-	if(should_terminate == 1){
-		printf("[INFO] Socket was closed before the connection could be established");
-		set_interrupt_level(interrupt_level);
-		return NULL;
-	}
-
-	else{
-		set_interrupt_level(interrupt_level);
-		return new_socket;
-	}
+	return new_socket;
 	
 }
 
@@ -225,7 +233,87 @@ minisocket_t minisocket_server_create(int port, minisocket_error *error)
  */
 minisocket_t minisocket_client_create(network_address_t addr, int port, minisocket_error *error)
 {
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+	minisocket_t new_socket;
+	int should_terminate;
+	int connection_established = 0;
+	network_interrupt_arg_t *data_received;
+	int socket_port_num = get_next_client_socket_number();
 
+	*error = SOCKET_NOERROR;
+
+	if(socket_port_num == -1){
+		printf("[ERROR] All client socket ports in use. Can not create a new one.\n");
+		*error = SOCKET_NOMOREPORTS;
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	if (client_sockets[port - CLIENT_SOCKET_START] != NULL) {
+		printf("[ERROR] Failed to create client socket, port [%d] in use.\n", port);
+		*error = SOCKET_PORTINUSE;
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	new_socket = (minisocket_t) malloc(sizeof(struct minisocket));
+	if (new_socket == NULL) {
+		printf("[ERROR] Memory allocation for client socket [%d] failed.\n", port);
+		*error = SOCKET_OUTOFMEMORY;
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	new_socket->data_lock = semaphore_create();
+	if (new_socket->data_lock == NULL) {
+		printf("[ERROR] Client socket initialization failed (Out of memory).\n", port);
+		*error = SOCKET_OUTOFMEMORY;
+		free(new_socket);
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	new_socket->data_queue = queue_new();
+	if (new_socket->data_queue == NULL) {
+		printf("[ERROR] Client socket initialization failed (Out of memory).\n", port);
+		*error = SOCKET_OUTOFMEMORY;
+		semaphore_destroy(new_socket->data_lock);
+		free(new_socket);
+		set_interrupt_level(interrupt_level);
+		return NULL;
+	}
+
+	semaphore_initialize(new_socket->data_lock, 0);
+	new_socket->num_threads_blocked = 0;
+	new_socket->should_terminate = 0;
+	new_socket->socket_type = CLIENT;
+
+	new_socket->ack_num = 0;
+	new_socket->seq_num = 1;
+
+	network_address_copy(addr,new_socket->remote_address);
+	new_socket->remote_port_number = port;
+	new_socket->port_status = NOT_READY;
+	client_sockets[port - CLIENT_SOCKET_START] = new_socket;
+
+	new_socket->num_threads_blocked++;
+	set_interrupt_level(interrupt_level);
+
+	//Create handshake
+
+	if( minisocket_send_packet_with_retransmission(new_socket, "This is a SYN\n", 14, MSG_SYN) > 0){
+		new_socket->ack_num++;
+		minisocket_send_packet_without_retransmission(new_socket, "This is an ACK\n", 15, MSG_ACK);
+
+		new_socket->port_status = READY;
+	}
+	else{
+		printf("[ERROR] A timeout occured, no response from server on port %d.\n", new_socket->port_number);
+		return NULL;
+	}
+
+
+	return new_socket;
 }
 
 
@@ -253,6 +341,72 @@ int minisocket_send(minisocket_t socket, minimsg_t msg, int len, minisocket_erro
 
 }
 
+int minisocket_send_packet_without_retransmission(minisocket_t socket, minimsg_t msg, int len, char type){
+	int bytes_sent_successfully;
+	mini_header_reliable_t packet_header;
+	network_address_t local_addr;
+	interrupt_level_t interrupt_level;
+	network_interrupt_arg_t *data_received;
+	int num_retries;
+
+	// Validate message and port to send through
+	if(msg == NULL){
+		printf("[ERROR] Cannot send a NULL message\n");
+		return 0;
+	}
+	if(len == 0){
+		printf("[ERROR] Cannot send a message of length 0\n");
+		return 0;
+	}
+	if(len > MINIMSG_MAX_MSG_SIZE){
+		printf("[ERROR] Size of message cannot exceed %d bytes\n", MINIMSG_MAX_MSG_SIZE);
+		return 0;
+	}
+	if(socket == NULL || socket->port_status == NOT_READY){
+		printf("[ERROR] Socket is not initialized\n");
+		return 0;
+	}
+	
+	interrupt_level = set_interrupt_level(DISABLED);
+	if( (socket->socket_type == SERVER && server_sockets[socket->port_number - SERVER_SOCKET_START] != NULL) || (socket->socket_type == CLIENT && client_sockets[socket->port_number - CLIENT_SOCKET_START] != NULL)){
+		printf("[ERROR] Socket is not initialized\n");
+		set_interrupt_level(interrupt_level);
+		return 0;
+	}
+	set_interrupt_level(interrupt_level);
+
+	// Create packet header
+	packet_header = (mini_header_reliable_t)malloc(sizeof(struct mini_header_reliable));	
+	if(packet_header == NULL) {
+		printf("[ERROR] Memory allocation for packet header failed\n");
+		return 0;
+	}
+
+	// Initialize packet header
+	packet_header->protocol = PROTOCOL_MINISTREAM;
+	
+	network_get_my_address(local_addr);
+	pack_address(packet_header->source_address, local_addr);
+
+	pack_unsigned_short(packet_header->source_port, socket->port_number);
+
+	pack_address(packet_header->destination_address, socket->remote_address);
+
+	pack_unsigned_short(packet_header->destination_port, socket->remote_port_number);
+
+	packet_header->message_type = type;
+
+	pack_unsigned_short(packet_header->seq_number, socket->seq_num);
+	pack_unsigned_short(packet_header->ack_number, socket->ack_num);
+
+	// Send packet
+	bytes_sent_successfully = network_send_pkt(socket->remote_address, sizeof(struct mini_header_reliable), (char *)packet_header, len, msg) - sizeof(struct mini_header_reliable);
+	bytes_sent_successfully = max(bytes_sent_successfully, 0);	
+
+
+	free(packet_header);
+	return bytes_sent_successfully;
+}
 
 int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t msg, int len, char type){
 	int bytes_sent_successfully;
@@ -351,26 +505,6 @@ int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t ms
 void force_receive_to_exit(void* socket){
 	semaphore_V(((minisocket_t)socket)->data_lock);
 }
-
-/*
-typedef struct mini_header_reliable
-{
-	char protocol;
-
-	char source_address[8];
-	char source_port[2];
-
-	char destination_address[8];
-	char destination_port[2];
-	
-	char message_type;
-	char seq_number[4];
-	char ack_number[4];
-
-} *mini_header_reliable_t;
-*/
-
-
 
 
 /*
