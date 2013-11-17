@@ -307,7 +307,8 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 
 }
 
-void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *data){
+void minimsg_process(network_interrupt_arg_t *data){
+	unsigned short unbound_port_num = unpack_unsigned_short(data->buffer + 19);
 	miniport_t target_port = unbounded_ports[unbound_port_num - UNBOUNDED_PORT_START];
 	mini_header_t header = (mini_header_t) data->buffer;
 	network_address_t destination_address;

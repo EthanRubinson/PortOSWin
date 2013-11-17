@@ -30,6 +30,9 @@ enum minisocket_error {
   SOCKET_OUTOFMEMORY    /* function could not complete because of insufficient memory */
 };
 
+extern void minisocket_process(network_interrupt_arg_t *data);
+
+
 /* Initializes the minisocket layer. */
 void minisocket_initialize();
 
@@ -102,5 +105,6 @@ int minisocket_receive(minisocket_t socket, minimsg_t msg, int max_len, minisock
  * function.  The function should never fail.
  */
 void minisocket_close(minisocket_t socket); 
+
 
 #endif /* __MINISOCKETS_H_ */

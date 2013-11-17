@@ -17,6 +17,7 @@
 #include "synch.h"
 #include "network.h"
 #include "minimsg.h"
+#include "minisocket.h"
 #include "miniheader.h"
 #include <assert.h>
 #include <math.h>
@@ -329,6 +330,8 @@ void network_handler(void* arg)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	unsigned short port_to_process;
+	char protocol_type;
+
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
 	if (incomming_data == NULL) {
@@ -336,11 +339,17 @@ void network_handler(void* arg)
 		set_interrupt_level(intlevel);
 		return;
 	}
-	// Get destination port number
-	port_to_process = unpack_unsigned_short(incomming_data->buffer + 19);
-	//printf("[INFO] Packet received for port # %d. Signaling it...\n", port_to_process);
-	minimsg_process(port_to_process, incomming_data);
-	//printf("[INFO] Signaling complete\n");
+
+	protocol_type = incomming_data->buffer[0];
+
+	if(protocol_type == PROTOCOL_MINIDATAGRAM){
+		// Get destination port number
+		minimsg_process(incomming_data);
+	}
+	else{
+		minisocket_process(incomming_data);
+	}
+
 	set_interrupt_level(intlevel);
 }
 

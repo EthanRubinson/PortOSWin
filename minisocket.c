@@ -519,7 +519,68 @@ void force_receive_to_exit(void* socket){
  */
 int minisocket_receive(minisocket_t socket, minimsg_t msg, int max_len, minisocket_error *error)
 {
+	network_interrupt_arg_t *data_received;
+	unsigned int received_ack_number;
+	unsigned int received_seq_number;
+	int bytes_received = 0;
 
+	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
+	if (socket == NULL ||
+			socket->socket_type == SERVER && server_sockets[socket->port_number - SERVER_SOCKET_START] == NULL ||
+			socket->socket_type == CLIENT && client_sockets[socket->port_number - CLIENT_SOCKET_START] == NULL) {
+		printf("[ERROR] Cannot read from an uninitialized socket\n");
+		*error = SOCKET_INVALIDPARAMS;
+		set_interrupt_level(interrupt_level);
+		return -1;
+	}
+
+	if(socket->port_status != READY){
+		printf("[ERROR] Receive failed. A connection has not yet been established on this socket\n");
+		*error = SOCKET_INVALIDPARAMS;
+		set_interrupt_level(interrupt_level);
+		return -1;
+	}
+
+	set_interrupt_level(interrupt_level);
+	
+	socket->num_threads_blocked++;
+	while(bytes_received == 0){
+		
+		// Wait for packet arrival
+		semaphore_P(socket->data_lock);
+	
+		//Check if we are supposed to terminate
+		if(socket->should_terminate == 1){
+			printf("[INFO] Socket was terminated before data could be received\n");
+			*error = SOCKET_RECEIVEERROR;
+			socket->num_threads_blocked--;
+			return -1;
+		}
+	
+		interrupt_level = set_interrupt_level(DISABLED);
+		queue_dequeue(socket->data_queue, (void **) &data_received);
+		set_interrupt_level(interrupt_level);
+
+		//Check that their seq number is exactly one more than out ack number
+		received_seq_number = unpack_unsigned_int(data_received->buffer + 22);
+
+		if (received_seq_number != socket->ack_num + 1 || data_received->size - sizeof(struct mini_header_reliable) < 0){
+			//Resend the ack for the last packet with our current ack number
+			minisocket_send_packet_without_retransmission(socket, "This is an ACK\n", 15, MSG_ACK);
+		}
+		else{
+			bytes_received = data_received->size - sizeof(struct mini_header_reliable);
+			socket->ack_num++;
+			minisocket_send_packet_without_retransmission(socket, "This is an ACK\n", 15, MSG_ACK);	
+			memcpy(msg, data_received->buffer + sizeof(struct mini_header_reliable), bytes_received);
+			
+		}
+		
+		free(data_received);
+	}
+
+	socket->num_threads_blocked--;
+	return bytes_received;
 }
 
 /* Close a connection. If minisocket_close is issued, any send or receive should
@@ -563,4 +624,8 @@ void minisocket_close(minisocket_t socket)
 	free(socket);
 	set_interrupt_level(interrupt_level);
 	
+}
+
+void minisocket_process(network_interrupt_arg_t *data){
+	printf("asdasd");
 }

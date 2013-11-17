@@ -67,6 +67,6 @@ extern int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_po
  */
 extern int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_port, minimsg_t msg, int *len);
 
-extern void minimsg_process(unsigned short unbound_port_num, network_interrupt_arg_t *data);
+extern void minimsg_process(network_interrupt_arg_t *data);
 
 #endif __MINIMSG_H__
