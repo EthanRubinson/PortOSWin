@@ -70,7 +70,8 @@ int get_next_client_socket_number(){
 
 //Broadcasts a terminate signal to all sockets that are blocked on the data_lock
 void broadcast_socket_close_signal(minisocket_t socket_to_close){
-	
+	int i;
+
 	if(socket_to_close == NULL){
 		printf("[INFO] Cannot close sockt, socket is NULL");
 		return;
@@ -84,9 +85,13 @@ void broadcast_socket_close_signal(minisocket_t socket_to_close){
 
 	//Signal all remaining (blocked) threads to terminate
 	socket_to_close->should_terminate = 1;
-	for(int i = 0; i< socket_to_close->num_threads_blocked; i++) {
+	for(i = 0; i< socket_to_close->num_threads_blocked; i++) {
 		semaphore_V(socket_to_close->data_lock);
 	}
+}
+
+void force_receive_to_exit(void* socket){
+	semaphore_V(((minisocket_t)socket)->data_lock);
 }
 
 /* Initializes the minisocket layer. */
@@ -473,7 +478,7 @@ int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t ms
 		bytes_sent_successfully = network_send_pkt(socket->remote_address, sizeof(struct mini_header_reliable), (char *)packet_header, len, msg) - sizeof(struct mini_header_reliable);
 		bytes_sent_successfully = max(bytes_sent_successfully, 0);	
 		
-		register_alarm(100 * 2^num_retries, force_receive_to_exit, socket);
+		register_alarm(100 * 2^num_retries, force_receive_to_exit,socket);
 		semaphore_P(socket->data_lock);
 
 		//Retrieve packet from queue
@@ -501,11 +506,6 @@ int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t ms
 	free(packet_header);
 	return -1;
 }
-
-void force_receive_to_exit(void* socket){
-	semaphore_V(((minisocket_t)socket)->data_lock);
-}
-
 
 /*
  * Receive a message from the other end of the socket. Blocks until
