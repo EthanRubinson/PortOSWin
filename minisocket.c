@@ -343,7 +343,31 @@ minisocket_t minisocket_client_create(network_address_t addr, int port, minisock
  */
 int minisocket_send(minisocket_t socket, minimsg_t msg, int len, minisocket_error *error)
 {
+	// partition msg into MINIMSG_MAX_MSG_SIZE chunks
+	// call send with retransmission on each sequential chunk
+	// for each send that succeeds, increment count of number of bytes sent
+	// if some send fails, return -1 and set error message
 
+	char* marker = msg;
+	int buffer = len;
+	int bytes_sent_successfully = 0;
+	int segment_size;
+
+	while(buffer > 0) {
+		if(buffer > MINIMSG_MAX_MSG_SIZE) {
+			segment_size = minisocket_send_packet_with_retransmission(socket, marker, MINIMSG_MAX_MSG_SIZE, (char)0);
+			marker += MINIMSG_MAX_MSG_SIZE;
+			buffer -= MINIMSG_MAX_MSG_SIZE;
+		} else {
+			segment_size = minisocket_send_packet_with_retransmission(socket, marker, buffer, (char)0);
+		}
+		if(segment_size <= 0){
+			return -1;
+		} else {
+			bytes_sent_successfully += segment_size;
+		}
+	}
+	return bytes_sent_successfully;
 }
 
 int minisocket_send_packet_without_retransmission(minisocket_t socket, minimsg_t msg, int len, char type){
@@ -627,5 +651,36 @@ void minisocket_close(minisocket_t socket)
 }
 
 void minisocket_process(network_interrupt_arg_t *data){
-	printf("asdasd");
+	unsigned short target_port = unpack_unsigned_short(data->buffer + 19);
+	minisocket_t target_socket;
+	mini_header_reliable_t header = (mini_header_reliable_t) data->buffer;
+	network_address_t destination_address;
+	network_address_t my_address;
+	network_get_my_address(my_address);
+	unpack_address(header->destination_address, destination_address);
+	
+	if (target_port > SERVER_SOCKET_START && target_port < SERVER_SOCKET_LIMIT) {
+		target_socket = server_sockets[target_port - SERVER_SOCKET_START];
+	} else if (target_port > CLIENT_SOCKET_START && target_port < CLIENT_SOCKET_LIMIT) {
+		target_socket = client_sockets[target_port - CLIENT_SOCKET_START];
+	} else {
+		return;
+	}
+
+	// Validate packet
+	if(target_socket == NULL){
+		printf("[ERROR] Target socket %d is null \n", target_port);
+		free(data);
+	} else if (data->size < sizeof(struct mini_header_reliable)) {
+		printf("[ERROR] Packet size is smaller than header \n");
+		free(data);
+	} else if (!network_address_same(destination_address, my_address)) {
+		printf("[ERROR] Received packet not intended for us \n");
+		free(data);
+	} else {
+		// Add packet to port queue
+		queue_append(target_socket->data_queue, data);
+		// Signal packet arrival
+		semaphore_V(target_socket->data_lock);
+	}
 }

@@ -323,9 +323,6 @@ void minimsg_process(network_interrupt_arg_t *data){
 	} else if (data->size < sizeof(struct mini_header)) {
 		printf("[ERROR] Packet size is smaller than header \n");
 		free(data);
-	} else if (header->protocol != PROTOCOL_MINIDATAGRAM) {
-		printf("[ERROR] Invalid packet protocol \n");
-		free(data);
 	} else if (!network_address_same(destination_address, my_address)) {
 		printf("[ERROR] Received packet not intended for us \n");
 		free(data);
