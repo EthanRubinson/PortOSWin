@@ -85,7 +85,7 @@ int thread(int* arg) {
 
 
   // BOUND PORT TESTS
-   printf("* Attempting to create bound ports 32768-65535 and bind them to 0-32768 *\n");
+   printf("* Attempting to create bound ports 32768-65535 and bind them to 0-32767 *\n");
 
   for(i = 0; i <= 32767; i++) {
 	  if(i == 500){ 
@@ -105,9 +105,15 @@ int thread(int* arg) {
   }
   printf("* Finished creating bound ports! *\n\n");
 
-  printf("* Trying to create another bound port [There are none left] *\n");
-  if(miniport_create_bound(my_address, 0) != NULL){ printf("* A bound port was somehow created | Test Failed *\n"); return 1; }
-  else{ printf("* Test Passed *\n\n"); }
+  for(i = 32768; i <= 32769; i++){
+	  if(miniport_create_bound(my_address, i) != NULL){ 
+		  printf("* A bound port was somehow created | Test Failed *\n"); 
+		  return 1; 
+	  }
+  }
+  //printf("* Trying to create another bound port [There are none left] *\n");
+  //if(miniport_create_bound(my_address, 0) != NULL){ printf("* A bound port was somehow created | Test Failed *\n"); return 1; }
+  //else{ printf("* Test Passed *\n\n"); }
 
   printf("* Trying to destroy a bound port (500) and recreate it *\n");
   miniport_destroy(test_port);

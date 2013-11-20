@@ -51,12 +51,12 @@ int get_next_client_socket_number(){
 	int port_iter = current_client_socket_number;
 
 	do {
-		if(client_sockets[port_iter - CLIENT_SOCKET_START] == NULL){
+		if(port_iter > CLIENT_SOCKET_LIMIT){
+			port_iter = CLIENT_SOCKET_START;		
+		} else if (client_sockets[port_iter - CLIENT_SOCKET_START] == NULL){
 			current_client_socket_number = port_iter + 1;
 			set_interrupt_level(interrupt_level);
 			return port_iter;
-		} else if (port_iter > CLIENT_SOCKET_LIMIT){
-			port_iter = CLIENT_SOCKET_START;
 		} else {
 			port_iter++;
 		}

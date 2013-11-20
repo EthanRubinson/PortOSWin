@@ -114,12 +114,12 @@ int get_next_bounded_port_number(){
 	int port_iter = current_bounded_port_number;
 
 	do {
-		if(bounded_ports[port_iter - BOUNDED_PORT_START] == NULL){
+		if(port_iter > BOUNDED_PORT_LIMIT){
+			port_iter = BOUNDED_PORT_START;
+		} else if (bounded_ports[port_iter - BOUNDED_PORT_START] == NULL){
 			current_bounded_port_number = port_iter + 1;
 			set_interrupt_level(interrupt_level);
 			return port_iter;
-		} else if (port_iter > BOUNDED_PORT_LIMIT){
-			port_iter = BOUNDED_PORT_START;
 		} else {
 			port_iter++;
 		}
