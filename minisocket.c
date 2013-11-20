@@ -372,6 +372,7 @@ int minisocket_send(minisocket_t socket, minimsg_t msg, int len, minisocket_erro
 	int buffer = len;
 	int bytes_sent_successfully = 0;
 	int segment_size;
+	*error = SOCKET_NOERROR;
 	printf("[DEBUG] [in send()] Want to send %d bytes\n ",len);
 	while(buffer > 0) {
 		printf("[DEBUG] [in send()] Buffer has %d bytes remaining\n ",buffer);
@@ -385,14 +386,20 @@ int minisocket_send(minisocket_t socket, minimsg_t msg, int len, minisocket_erro
 		}
 
 		if(segment_size <= 0){
-			return -1;
+			*error = SOCKET_SENDERROR;
+			break;
 		} else {
 			printf("[DEBUG] [in send()] Sent a segment of %d bytes\n ",segment_size);
 			bytes_sent_successfully += segment_size;
 			printf("[DEBUG] [in send()] Have sent a total of %d bytes\n ",bytes_sent_successfully);
 		}
 	}
-	printf("[DEBUG] [in send()] Sent %d bytes successfully\n ",bytes_sent_successfully);
+	if(buffer == 0) {
+		minisocket_send_packet_without_retransmission(socket, "Fin packet\n", 11, (char)MSG_FIN);
+		printf("[DEBUG] [in send()] Sent %d bytes successfully\n ",bytes_sent_successfully);
+	} else {
+		printf("[DEBUG} [in send()] Sent %d / %d bytes successfully\n", bytes_sent_successfully, len);
+	}	
 	return bytes_sent_successfully;
 }
 
@@ -562,6 +569,7 @@ int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t ms
 		set_interrupt_level(interrupt_level);
 
 		//We sent the SYN, so we need to recieve a SYN_ACK instead of an ACK
+		//Still in handshake
 		if (type == MSG_SYN){
 			printf("[DEBUG] [In send with %s] Recieved something, is it the SYN_ACK?\n",(socket->socket_type == SERVER ? "Server":"Client"));
 			//Check for the appropriate ack
@@ -604,7 +612,7 @@ int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t ms
 	}
 
 	free(packet_header);
-	return -1;
+	return 0;
 }
 
 /*
@@ -664,6 +672,12 @@ int minisocket_receive(minisocket_t socket, minimsg_t msg, int max_len, minisock
 
 		if (data_received == NULL){
 			printf("[DEBUG] [In recieve for %s] We recieved nothing [This should not happen]?!\n",(socket->socket_type == SERVER ? "Server":"Client"));
+			socket->num_threads_blocked--;
+			return 0;
+		}
+		if (*(data_received->buffer + 21) == (char)MSG_FIN) {
+			printf("[DEBUG] [In recieve for %s] Received FIN packet, exiting \n",(socket->socket_type == SERVER ? "Server":"Client"));
+			socket->num_threads_blocked--;
 			return 0;
 		}
 
