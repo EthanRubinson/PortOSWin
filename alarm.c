@@ -179,7 +179,7 @@ int register_alarm(int delay, void (*func)(void*), void *arg)
 void deregister_alarm(int alarmid)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
-	alarm_list_deleteFirst();
+	alarm_list_delete(alarmid);
 	set_interrupt_level(intlevel);
 }
 

@@ -550,6 +550,7 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	// Initialize the network interrupt handler and port arrays
 	network_initialize(network_handler);
 	minimsg_initialize();
+	minisocket_initialize();
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
 	idle_thread_proc(NULL);
