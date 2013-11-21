@@ -10,28 +10,38 @@
 #include <math.h>
 
 
-/*enum designated the type of socket a minisocket is*/
+/*enum designating the type of socket a minisocket is*/
 typedef enum {SERVER,CLIENT} socket_t;
+
+/*enum designating the wether a minisocket is ready to recieve data*/
 typedef enum {READY,NOT_READY} status_t;
 
+
+/*a minisocket*/
 struct minisocket
 {
+	//Lock used to wait until either data, or a timeout is recieved
 	semaphore_t data_lock;
+
+	//queue containing data recieved on the minisocket
 	queue_t data_queue;
 
+	//= id of the timeout alarm for the minisocket
 	int alarm_id;
 
+	//= number of threads blocked on the current socket
 	int num_threads_blocked;
-	int should_terminate;
-	status_t port_status;
 
+	//= if the thread currently blocked on this socket should terminate (ie: a close signal was recieved)
+	int should_terminate;
+
+	//Minisocket characteristics
+	status_t port_status;
 	unsigned short port_number;
 	int ack_num;
 	int seq_num;
-
 	unsigned short remote_port_number;
 	network_address_t remote_address;
-
 	socket_t socket_type;
 };
 
@@ -47,8 +57,11 @@ struct minisocket
 // Socket arrays
 minisocket_t server_sockets[SERVER_SOCKET_LIMIT - SERVER_SOCKET_START + 1];
 minisocket_t client_sockets[CLIENT_SOCKET_LIMIT - CLIENT_SOCKET_START + 1];
+
+//Counter for ensuring every client socket created gets a unique port number
 int current_client_socket_number;
 
+//= the next available port number for a client socket
 int get_next_client_socket_number(){
 	interrupt_level_t interrupt_level = set_interrupt_level(DISABLED);
 	int port_iter = current_client_socket_number;
@@ -92,6 +105,7 @@ void broadcast_socket_close_signal(minisocket_t socket_to_close){
 	}
 }
 
+//Signal the data lock semaphore forcing the thread blocked on it to continue
 void force_receive_to_exit(void* socket){
 	semaphore_V(((minisocket_t)socket)->data_lock);
 }
@@ -273,13 +287,6 @@ minisocket_t minisocket_client_create(network_address_t addr, int port, minisock
 		return NULL;
 	}
 
-	/*if (client_sockets[port - CLIENT_SOCKET_START] != NULL) {
-		printf("[ERROR] Failed to create client socket, port [%d] in use.\n", port);
-		*error = SOCKET_PORTINUSE;
-		set_interrupt_level(interrupt_level);
-		return NULL;
-	}*/
-
 	new_socket = (minisocket_t) malloc(sizeof(struct minisocket));
 	if (new_socket == NULL) {
 		printf("[ERROR] Memory allocation for client socket [%d] failed.\n", port);
@@ -321,15 +328,12 @@ minisocket_t minisocket_client_create(network_address_t addr, int port, minisock
 	new_socket->remote_port_number = port;
 	new_socket->port_status = NOT_READY;
 	new_socket->port_number = socket_port_num;
-	//printf("[DEBUG] [In client create] %d\n", socket_port_num);
 	client_sockets[socket_port_num - CLIENT_SOCKET_START] = new_socket;
 	
-	//printf("[DEBUG] [In client create] We done\n");
 	new_socket->num_threads_blocked++;
 	set_interrupt_level(interrupt_level);
 
 	//Create handshake
-	//printf("[DEBUG] [In client create] Trying to create handshake\n");
 	if( minisocket_send_packet_with_retransmission(new_socket, "This is a SYN\n", 14, MSG_SYN) > 0){
 		new_socket->ack_num++;
 		minisocket_send_packet_without_retransmission(new_socket, "This is an ACK\n", 15, MSG_ACK);
@@ -340,7 +344,6 @@ minisocket_t minisocket_client_create(network_address_t addr, int port, minisock
 		printf("[ERROR] A timeout occured, no response from server on port %d.\n", new_socket->port_number);
 		return NULL;
 	}
-
 
 	return new_socket;
 }
@@ -377,9 +380,9 @@ int minisocket_send(minisocket_t socket, minimsg_t msg, int len, minisocket_erro
 	int bytes_sent_successfully = 0;
 	int segment_size;
 	*error = SOCKET_NOERROR;
-	//printf("[DEBUG] [in send()] Want to send %d bytes\n ",len);
+
 	while(buffer > 0) {
-		//printf("[DEBUG] [in send()] Buffer has %d bytes remaining\n ",buffer);
+
 		if(buffer > MINIMSG_MAX_MSG_SIZE) {
 			segment_size = minisocket_send_packet_with_retransmission(socket, marker, MINIMSG_MAX_MSG_SIZE, (char)0);
 			marker += segment_size;
@@ -574,7 +577,6 @@ int minisocket_send_packet_with_retransmission(minisocket_t socket, minimsg_t ms
 			// the alarm fired, undo the signal. This should never block
 			//printf("Deregistering alarm that fired already \n");
 			semaphore_P(socket->data_lock);
-			//printf("asdoijasodjioaj\n");
 		}
 
 		//We got something
@@ -770,6 +772,7 @@ void minisocket_close(minisocket_t socket)
 	
 }
 
+//Process a data packet received on a minisocket
 void minisocket_process(network_interrupt_arg_t *data){
 	unsigned short target_port = unpack_unsigned_short(data->buffer + 19);
 	minisocket_t target_socket;

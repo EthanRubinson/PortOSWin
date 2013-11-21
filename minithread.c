@@ -336,7 +336,6 @@ void network_handler(void* arg)
 
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
-	//printf("\nPACKET RECEIEVED\n");
 	if (incomming_data == NULL) {
 		printf("[INFO] Interrupt argument is null \n");
 		set_interrupt_level(intlevel);
@@ -345,10 +344,12 @@ void network_handler(void* arg)
 
 	protocol_type = incomming_data->buffer[0];
 
+	//Process a UDP packet
 	if(protocol_type == PROTOCOL_MINIDATAGRAM){
 		// Get destination port number
 		minimsg_process(incomming_data);
 	}
+	//Process a TCP packet
 	else{
 		minisocket_process(incomming_data);
 	}
