@@ -332,8 +332,11 @@ void network_handler(void* arg)
 	unsigned short port_to_process;
 	char protocol_type;
 
+	
+
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
+	//printf("\nPACKET RECEIEVED\n");
 	if (incomming_data == NULL) {
 		printf("[INFO] Interrupt argument is null \n");
 		set_interrupt_level(intlevel);
@@ -368,7 +371,7 @@ void clock_handler(void* arg)
 	//Increment/decremement the appriopriate tick counters
 	ticks++;
 	//if(ticks % 20 == 0)
-		//printf("%d\n",current_thread->priority);
+		//printf("%d\n",ticks);
 
 
 	process_alarms();

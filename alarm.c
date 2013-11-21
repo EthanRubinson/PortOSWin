@@ -67,13 +67,13 @@ void alarm_list_deleteFirst() {
 
 
 /*Deletes an alarm with the specified alarm id*/
-void alarm_list_delete(int id) {
+int alarm_list_delete(int id) {
 	alarm_node_t current_alarm;
 	alarm_node_t previous_alarm;
 
 	if (registered_alarms == NULL) {
 		printf("[ERROR] Cannot delete from empty list \n");
-		return;
+		return -1;
 	}
 	current_alarm = registered_alarms->head;
 	previous_alarm = current_alarm;
@@ -83,18 +83,19 @@ void alarm_list_delete(int id) {
 			if(current_alarm == registered_alarms->head){
 				registered_alarms->head = registered_alarms->head->next;
 				free(current_alarm);
-				return;
+				return 0;
 			}
 			else{
 				previous_alarm->next = current_alarm->next;
 				free(current_alarm);
-				return;
+				return 0;
 			}
 		}
 		previous_alarm = current_alarm;
 		current_alarm = current_alarm->next;
 	}
-	printf("[INFO] ID not found in alarm list, could not delete \n");
+	//printf("[INFO] ID [%d] not found in alarm list, could not delete \n", id);
+	return -1;
 }
 
 /*Inserts an alarm into the list such that all alarms "before" it should be triggered first and all alarms "after" it are triggered later
@@ -176,10 +177,11 @@ int register_alarm(int delay, void (*func)(void*), void *arg)
  * delete a given alarm  
  * it is ok to try to delete an alarm that has already executed.
  */
-void deregister_alarm(int alarmid)
+int deregister_alarm(int alarmid)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
-	alarm_list_delete(alarmid);
+	int result = alarm_list_delete(alarmid);
 	set_interrupt_level(intlevel);
+	return result;
 }
 
