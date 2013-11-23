@@ -12,9 +12,8 @@
 int
 thread(int* arg) {
   printf("Hello, world!\n");
- while(1) {
-  
- }
+
+  return 0;
 }
 
 void 

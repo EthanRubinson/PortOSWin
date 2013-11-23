@@ -26,8 +26,6 @@ int consumer(int* arg) {
   int out = 0;
 
   while (out < *arg) {
-	 int c = 0;
-	 for(c = 0;c<INT_MAX/4;c++){}
     n = genintrand(BUFFER_SIZE);
     n = (n <= *arg - out) ? n : *arg - out;
     printf("Consumer wants to get %d items out of buffer ...\n", n);
