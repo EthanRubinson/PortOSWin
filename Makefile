@@ -82,6 +82,10 @@ OBJ = alarm.obj\
 	pid_random.obj \
 	miniheader.obj \
 	minimsg.obj \
+	minisocket.obj \
+	hashtable.obj \
+	miniroute.obj \
+	read.obj \
 	network.obj
 
 all: minithreads.exe

@@ -105,6 +105,30 @@
     <ClCompile Include="Chat_Test.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="miniroute.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="minisocket.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="read.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="conn-network1.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="conn-network2.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="conn-network3.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="hash_table_test.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="hashtable.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="defs.h">
@@ -147,6 +171,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="minimsg.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="miniroute.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="minisocket.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="read.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="read_private.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
