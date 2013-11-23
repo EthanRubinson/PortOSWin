@@ -114,12 +114,12 @@ int get_next_bounded_port_number(){
 	int port_iter = current_bounded_port_number;
 
 	do {
-		if(bounded_ports[port_iter - BOUNDED_PORT_START] == NULL){
+		if(port_iter > BOUNDED_PORT_LIMIT){
+			port_iter = BOUNDED_PORT_START;
+		} else if (bounded_ports[port_iter - BOUNDED_PORT_START] == NULL){
 			current_bounded_port_number = port_iter + 1;
 			set_interrupt_level(interrupt_level);
 			return port_iter;
-		} else if (port_iter > BOUNDED_PORT_LIMIT){
-			port_iter = BOUNDED_PORT_START;
 		} else {
 			port_iter++;
 		}
@@ -199,7 +199,7 @@ void miniport_destroy(miniport_t miniport)
 
 	free(miniport);
 	set_interrupt_level(interrupt_level);
-	
+	//printf("[DEBUG] port destroyed \n");
 }
 
 /* Sends a message through a locally bound port (the bound port already has an associated
@@ -216,6 +216,7 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 	int bytes_sent_successfully;
 	mini_header_t packet_header;
 	network_address_t local_addr;
+	int interrupt_level;
 
 	// Validate message and port to send through
 	if(msg == NULL){
@@ -230,6 +231,8 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 		printf("[ERROR] Size of message cannot exceed %d bytes\n", MINIMSG_MAX_MSG_SIZE);
 		return 0;
 	}
+
+	//interrupt_level = set_interrupt_level(DISABLED);
 	if(local_bound_port == NULL || bounded_ports[local_bound_port->port_number - BOUNDED_PORT_START] == NULL){
 		printf("[ERROR] Local bound (sending) port is not initialized \n");
 		return 0;
@@ -238,6 +241,7 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 		printf("[ERROR] Local unbounded (listening) port is not initialized \n");
 		return 0;
 	}
+	//set_interrupt_level(interrupt_level);
 	
 	
 	// Create packet header
@@ -277,17 +281,16 @@ int minimsg_receive(miniport_t local_unbound_port, miniport_t* new_local_bound_p
 	network_address_t response_address;
 	unsigned int response_port;
 	interrupt_level_t interrupt_level;
-
+	
 	if (local_unbound_port == NULL || unbounded_ports[local_unbound_port->port_number - UNBOUNDED_PORT_START] == NULL) {
 		printf("[ERROR] Cannot read from an uninitialized port");
 		return 0;
 	}
-
+	//printf("[DEBUG] Waiting for packet to arrive ... \n");
 	// Wait for packet arrival
 	semaphore_P(local_unbound_port->port_structure.unbound_port.datagrams_ready);
-	
-	// Synchronized: Retrieve packet from queue
 	interrupt_level = set_interrupt_level(DISABLED);
+	// Synchronized: Retrieve packet from queue
 	queue_dequeue(local_unbound_port->port_structure.unbound_port.incoming_data, (void **) &data_received);
 	set_interrupt_level(interrupt_level);
 
