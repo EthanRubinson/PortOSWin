@@ -79,6 +79,7 @@ OBJ = alarm.obj\
 	$(MAIN).obj \
 	synch.obj \
 	multilevel_queue.obj \
+	hashtable.obj \
 	pid_random.obj \
 	miniheader.obj \
 	minimsg.obj \

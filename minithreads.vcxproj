@@ -125,6 +125,7 @@
   <ItemGroup>
     <ClInclude Include="alarm.h" />
     <ClInclude Include="defs.h" />
+    <ClInclude Include="hashtable.h" />
     <ClInclude Include="interrupts.h" />
     <ClInclude Include="interrupts_private.h" />
     <ClInclude Include="machineprimitives.h" />

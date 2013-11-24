@@ -1,6 +1,8 @@
 #include <assert.h>
 #include <limits.h>
-#include "hashtable.c"
+#include <stdio.h>
+#include <stdlib.h>
+#include "hashtable.h"
 
 //Original tests
 void test1(){
