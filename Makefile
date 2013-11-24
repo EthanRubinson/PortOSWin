@@ -65,7 +65,7 @@ LIB = kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib s
 # change this to the name of the file you want to link with minithreads, 
 # dropping the ".c": so to use "sieve.c", change to "MAIN = sieve".
 
-MAIN = network5
+MAIN = hash_table_test
 
 SYSTEMOBJ = interrupts.obj \
 
@@ -83,7 +83,6 @@ OBJ = alarm.obj\
 	miniheader.obj \
 	minimsg.obj \
 	minisocket.obj \
-	hashtable.obj \
 	miniroute.obj \
 	read.obj \
 	network.obj
