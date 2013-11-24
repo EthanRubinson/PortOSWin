@@ -6,32 +6,33 @@
 
 //Original tests
 void test1(){
-	int *item;
-	int x = 99;
+	int *received_item;
+	int test_value = 99;
 	hashtable_t a = hashtable_new(0);
-
-	hashtable_put(a, "ge", (void *) &x);
-	hashtable_get(a, "ge", (void **) &item);
 	
-	if (*item != 99){
+	hashtable_put(a, "I'm a key", (void *) &test_value);
+	hashtable_get(a, "I'm a key", (void **) &received_item);
+	
+	if (*received_item != 99){
 		printf("==autograde== {'name': 'test1', 'pass': False, 'reason': 'key 0 not 99. This does not bode well.'\n");
 		return;
 	}
 
-
+	printf("crashing");
+	hashtable_destroy(a);
 	printf("==autograde== {'name': 'test1', 'pass': True, 'reason': 'success'\n");
 }
 
 //Test insertions
-void test2(){
+/*void test2(){
 	hashtable_t a = hashtable_new(0);
-	int *item;
-	int *val;
+	int *received_item;
+	int val;
 	char* key;
 	int i = 0;
 
 	for (i=0; i<1000; i+=1){
-		key = (char *)malloc(sizeof(char) * 6);
+		key = (char *)malloc(6);
 		val = (int *)malloc(sizeof(int));
 		*val = i+1;
 		sprintf(key, "Key: %d", i);
@@ -76,6 +77,7 @@ void test3(){
 			return;
 		}
 		if (i%2){
+			printf("freeze here");
 			hashtable_remove(a, key);
 			printf("s");
 		}
@@ -201,8 +203,8 @@ void test6(){
 int main(int argc, char *argv[]){
 	//Do all the tests
 	test1();
-	test2();
-	test3();
+	//test2();
+	//test3();
 	//test4();
 	//test5();
 	//test6();
