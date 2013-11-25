@@ -4,6 +4,11 @@
 #include <math.h>
 #include <string.h>
 
+/*
+ * An entry in the hastable
+ * key -> the unhashed key
+ * value -> the data stored in the table
+ */
 struct table_entry {
 	char *key;
 	void *value;
@@ -11,6 +16,12 @@ struct table_entry {
 
 typedef struct table_entry *table_entry_t;
 
+/*
+ * A hashtable
+ * num_entries -> Number of elements stored in the table
+ * max_entries -> Maximum number of elements that can be stored in the table
+ * table -> The virtual hashtable
+ */
 struct hashtable {
 	unsigned long num_entries;
 	unsigned long max_entries;
@@ -19,7 +30,7 @@ struct hashtable {
 
 typedef struct hashtable *hashtable_t;
 
-
+/*Hashing function*/
 unsigned long hash(unsigned char *str)
     {
         unsigned long hash = 5381;
@@ -32,7 +43,7 @@ unsigned long hash(unsigned char *str)
         return hash;
     }
 
-
+/**Returns a new hashtable on success, NULL on failure*/
 hashtable_t hashtable_new(unsigned long starting_size) {
 	hashtable_t new_table = (hashtable_t) malloc(sizeof(struct hashtable));
 	
@@ -236,6 +247,9 @@ int hashtable_remove(hashtable_t ht, char *key) {
 
 }
 
+/* Destroys the hashtable
+ * DOES NOT free the actual data stored. (The calling program must do that)
+ */
 void hashtable_destroy(hashtable_t ht){
 	unsigned long elem_iter;
 	
@@ -253,7 +267,4 @@ void hashtable_destroy(hashtable_t ht){
 	free(ht->table);
 	//Free the overlying hashtable structure
 	free(ht);
-}
-
-void hashtable_stats(hashtable_t ht) {
 }
