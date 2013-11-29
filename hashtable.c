@@ -5,7 +5,7 @@
 #include <string.h>
 
 /*
- * An entry in the hastable
+ * A structure representing an entry in the hastable
  * key -> the unhashed key
  * value -> the data stored in the table
  */
@@ -13,7 +13,6 @@ struct table_entry {
 	char *key;
 	void *value;
 };
-
 typedef struct table_entry *table_entry_t;
 
 /*
@@ -27,10 +26,12 @@ struct hashtable {
 	unsigned long max_entries;
 	table_entry_t *table;
 };
-
 typedef struct hashtable *hashtable_t;
 
-/*Hashing function*/
+/*
+ * = a hash representation of the provied char*
+ * Hashing function provided by: http://www.cse.yorku.ca/~oz/hash.html
+ */
 unsigned long hash(unsigned char *str)
     {
         unsigned long hash = 5381;
@@ -39,19 +40,18 @@ unsigned long hash(unsigned char *str)
         while (c = *str++)
             hash = ((hash << 5) + hash) + c; /* hash * 33 + c */
 
-		//printf("[DEGUB] Got hash %lu\n",hash);
         return hash;
     }
 
-/**Returns a new hashtable on success, NULL on failure*/
+/* 
+ * Creates a new hastable
+ * Returns a new hashtable_t on Success, NULL on Failure
+ */
 hashtable_t hashtable_new(unsigned long starting_size) {
 	hashtable_t new_table = (hashtable_t) malloc(sizeof(struct hashtable));
 	
-	//printf("[DEGUB] Creating table of size %lu.\n", starting_size);
-
-	//Memory allocation of the hashtable structure failed
+	//Memory allocation of the hashtable structure failed or an invalid size was provided
 	if (new_table == NULL || starting_size < 0){
-		//printf("[DEGUB] Failed to create table of size %lu. Memory allocation of hashtable failed.\n", starting_size);
 		return NULL;
 	}
 	new_table->max_entries = starting_size;
@@ -61,16 +61,40 @@ hashtable_t hashtable_new(unsigned long starting_size) {
 	//Memory allocation of the actual table failed
 	if (new_table->table == NULL){
 		free(new_table);
-		//printf("[DEGUB] Failed to create table of size %lu. Memory allocation of the virtual table failed.\n", starting_size);
 		return NULL;
 	}
 	
-	//printf("[DEGUB] Created table of size %lu.\n", starting_size);
 	return new_table;
 }
 
-//Increases table size exponentially
-// Returns 0 on success, -1 on failure
+/*
+ * Destroys the hashtable's table structure.
+ * destroy_keys specifies whether the element keys should be deleted also (1 == destroy)
+ */
+void table_destroy(table_entry_t *table, unsigned long max_entries, int destroy_keys){
+	unsigned long elem_iter;
+	
+	//Iterate through the table and free all of the table element structures
+	for(elem_iter=0; elem_iter < max_entries; elem_iter++) {
+		if(table[elem_iter] != NULL){
+			//Only free the keys if they are marked for destruction
+			if(destroy_keys == 1){
+				free(table[elem_iter]->key);
+				table[elem_iter]->key = NULL;
+			}
+			free(table[elem_iter]);
+			table[elem_iter] = NULL;
+		}
+	}
+	//Free the table structure
+	free(table);
+	table = NULL;
+}
+
+/*
+ * Doubles the provided hashtable size
+ * Returns 0 on success, -1 on failure.
+ */
 int hashtable_expand(hashtable_t ht) {
 	table_entry_t *new_table;
 	table_entry_t temp_entry;
@@ -78,19 +102,23 @@ int hashtable_expand(hashtable_t ht) {
 	unsigned long elem_iter;
 	unsigned long new_size;
 	
-	if(ht->max_entries <= 1){
+	//Provided hashtable was NULL
+	if(ht == NULL){
+		return -1;
+	}
+
+	//Double the size of the hashtable (A table of size 0 gets size 2)
+	if(ht->max_entries == 0){
 		new_size = 2;
 	}
 	else{
-		new_size = ht->max_entries * ht->max_entries; //(int)pow(2.0,(int)floor(log10((double)ht->max_entries)/log10(2.0) + 1));
+		new_size = ht->max_entries * 2; //(int)pow(2.0,(int)floor(log10((double)ht->max_entries)/log10(2.0) + 1));
 	}
-
-	//printf("[DEGUB] Trying to expand hashtable with current limit %lu to %lu.\n", ht->max_entries, new_size);
 
 	new_table = (table_entry_t *)calloc(new_size,sizeof(table_entry_t));
 
+	//Memory allocation of the new table failed
 	if(new_table == NULL){
-		//printf("[DEGUB] Could not expand hashtable. Memory allocation of new virtual table failed.\n", ht->max_entries, new_size);
 		return -1;
 	}
 	
@@ -98,12 +126,17 @@ int hashtable_expand(hashtable_t ht) {
 	for(elem_iter=0; elem_iter < ht->max_entries; elem_iter++) {
 		temp_entry = (table_entry_t)malloc(sizeof(struct table_entry));;
 		
+		// The memory allocation for the new element failed.
+		if(temp_entry == NULL){
+			table_destroy(new_table, new_size,0);
+			return -1;
+		}
+
 		if(ht->table[elem_iter] != NULL) {
-			//Reassing the pointers
+			//Reassigning the pointers
 			temp_entry->key = ht->table[elem_iter]->key;
 			temp_entry->value = ht->table[elem_iter]->value;
-			//printf("[DEGUB] Moving value %d with key %s at index %lu.\n",*(int *)(temp_entry->value),temp_entry->key,elem_iter);
-
+			
 			new_index = hash((unsigned char*)temp_entry->key) % new_size;
 			while(new_table[new_index] != NULL){
 				new_index += 1;
@@ -112,40 +145,46 @@ int hashtable_expand(hashtable_t ht) {
 				}
 			}
 			new_table[new_index] = temp_entry;
-
-			free(ht->table[elem_iter]);
-			ht->table[elem_iter] = NULL;
-			//printf("[DEGUB] Moved value %d with key %s to index %lu.\n",*(int *)(temp_entry->value),temp_entry->key,new_index);
-
+			
 		}
 	}
 
-	free(ht->table);
+	table_destroy(ht->table,ht->max_entries,0);
+
 	ht->max_entries=new_size;
 	ht->table=new_table;
-
-	//printf("[DEGUB] Expansion successful. Hashtable can now contain %lu elements.\n", ht->max_entries);
 
 	return 0;
 }
 
-//Puts the element with the given key in the hashtable
-//Returns 0 on success, -1 on failure
+/*
+ * Puts the element with the given key in the hashtable
+ * Returns 0 on success, -1 on failure
+ */
 int hashtable_put(hashtable_t ht, char *key, void *value) {
 	table_entry_t new_entry = (table_entry_t)malloc(sizeof(struct table_entry));
 	unsigned long new_index;
 
-	//printf("[DEGUB] Adding element %d with key \"%s\" to hashtable\n", *(int *)value,key);
+	//Memory allocation of the new element failed
+	if(new_entry == NULL){
+		return -1;
+	}
+
+	new_entry->key = (char *)malloc(strlen(key) + 1);
+
+	if(new_entry->key == NULL){
+		free(new_entry);
+		return -1;
+	}
+
 	if (ht->max_entries / 2.0 <= ht->num_entries + 1){
 		if (hashtable_expand(ht) == -1) {
-			//printf("[DEGUB] Failed to add element.\n");
 			return -1;
 		}
 	}
 
-	new_entry->key = (char *)malloc(strlen(key) + 1);
 	strcpy(new_entry->key,key);
-	//memcpy(new_entry->key,key,strlen(key));
+
 	new_entry->value = value;	
 
 	new_index = hash((unsigned char*)key) % ht->max_entries;
@@ -156,22 +195,24 @@ int hashtable_put(hashtable_t ht, char *key, void *value) {
 			new_index = 0;
 		}
 	}
+	
 	ht->table[new_index] = new_entry;
 	ht->num_entries++;
-	//printf("[DEGUB] Element %d with key \"%s\" added at index %lu successfully\n",*(int *)value, key, new_index);
+
 	return 0;
 }
 
-//Retrieves the element with the given key from the hashtable
-//Return 0 on success, -1 on failure (item did not exist)
+/*
+ * Find an item with the specified key in the hashtable.
+ * Multiple items with the same 
+ * item=the item or NULL if the item does not exists
+ * Return 0 (success) -1 (failure)
+ */
 int hashtable_get(hashtable_t ht, char *key, void* *item) {
 	unsigned long search_index;
 	unsigned long end_search_index;
 
-	//printf("[DEGUB] Looking for element in table\n");
-
 	if(ht->num_entries == 0){
-		//printf("[DEGUB] Table has no elements, it's not here.\n");
 		*item = NULL;
 		return -1;
 	}
@@ -180,7 +221,6 @@ int hashtable_get(hashtable_t ht, char *key, void* *item) {
 	end_search_index = (search_index - 1 > 0) ? search_index - 1 : ht->max_entries -1;
 	
 	while (search_index != end_search_index  && ((ht->table[search_index] == NULL) ? 1 : strcmp(ht->table[search_index]->key,key) != 0)){
-		//printf("%lu\n",search_index);
 		if (search_index + 1 == ht->max_entries) {
 			search_index = 0;
 		}
@@ -189,26 +229,25 @@ int hashtable_get(hashtable_t ht, char *key, void* *item) {
 		}
 	}
 	if (ht->table[search_index] == NULL){
-		//printf("[DEGUB] Element not found\n");
 		*item = NULL;
 		return -1;
 	}
 	else if(search_index == end_search_index && strcmp(ht->table[search_index]->key,key) != 0){
-		//printf("[DEGUB] Element not found\n");
 		*item = NULL;
 		return -1;
 	}
 
 	else{
 		*item = ht->table[search_index]->value;
-		//printf("[DEGUB] Found the element!\n");
 		return 0;
 	}
 
 }
 
-//Removes the element with the given key from the hashtable
-//Return 0 on success, -1 on failure (element did not exist)
+/*
+ * Removes the element with the given key from the hashtable
+ * Return 0 on success, -1 on failure (element did not exist)
+ */
 int hashtable_remove(hashtable_t ht, char *key) {
 	unsigned long search_index;
 	unsigned long end_search_index; 
@@ -247,24 +286,15 @@ int hashtable_remove(hashtable_t ht, char *key) {
 
 }
 
-/* Destroys the hashtable
+/* 
+ * Destroys the hashtable
  * DOES NOT free the actual data stored. (The calling program must do that)
  */
 void hashtable_destroy(hashtable_t ht){
-	unsigned long elem_iter;
 	
+	table_destroy(ht->table, ht->max_entries,1);
 
-	//Iterate through the table and free all of the table element structures
-	for(elem_iter=0; elem_iter < ht->max_entries; elem_iter++) {
-		
-		if(ht->table[elem_iter] != NULL){
-			free(ht->table[elem_iter]->key);
-			free(ht->table[elem_iter]);
-		}
-	}
-	
-	//Free the table structure
-	free(ht->table);
 	//Free the overlying hashtable structure
 	free(ht);
+	ht = NULL;
 }
