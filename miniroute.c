@@ -59,9 +59,11 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 	if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == -1) {
 		set_interrupt_level(interrupt_level);
 		if(miniroute_discover_path(dest_address) < 0) { // may block for up to 36 seconds
+			printf("[ERROR] Could not find path to destination \n");
 			return -1;
 		}
 	} else if (hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == 0 && cached_path->path_length < 0) {
+		printf("[DEBUG] Waiting for ongoing route discovery to complete.. \n");
 		cached_path->num_threads_waiting++;
 		semaphore_P(cached_path->cache_update);
 	}
