@@ -40,12 +40,42 @@ unsigned int get_route_discovery_id() {
  */
 int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, int data_len, char* data)
 {
-	// [beging-synchronized]
-	// check path cache for dest_address
-	// if timestamp is greater than 3 seconds old 
-	// [end-synchronized]
-	// call miniroute_discover_path()
+	int interrupt_level;
+	int i;
+	unsigned int *my_address;
+	cache_entry_t cached_path;
+	routing_header_t header;
+	char* data;
 
+	interrupt_level = set_interrupt_level(DISABLED);
+	if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == 0
+		&& cached_path->path_length == 0) {
+		set_interrupt_level(interrupt_level);
+		if(miniroute_discover_path(dest_address) < 0) { // may block for up to 36 seconds
+			return -1;
+		}
+	}
+	set_interrupt_level(interrupt_level);
+
+	header = (routing_header_t) malloc(sizeof(struct routing_header));
+
+	if (header == NULL) {
+		printf("[ERROR] Routing header allocation failed \n");
+		return -1;
+	}
+
+	pack_address(header->destination, dest_address);
+	pack_unsigned_int(header->id, 0);
+	pack_unsigned_int(header->path_len, cached_path->path_length);
+	header->routing_packet_type = ROUTING_DATA;
+	pack_unsigned_int(header->ttl, MAX_ROUTE_LENGTH);
+
+	// path routing path
+	for(i = 0; i < MAX_ROUTE_LENGTH; i++) {
+		pack_address(header->path[i], *(cached_path->path[i]));
+	}
+
+	
 	// send data routing packet using path from hashtable cache
 
 }
@@ -77,7 +107,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 	
 
 	for(i = 0; i < 3; i++){
-		// set alarm for 12 seconds
+		// set alarm for 12 seconds (alarm will signal cache_update)
 		if(network_bcast_pkt(sizeof(struct routing_header), (char*)header, 22, "Discovering route... \n") != 22) {
 			printf("[ERROR] broadcast packet failed \n");
 			free(header);
@@ -89,12 +119,14 @@ int miniroute_discover_path(network_address_t dest_address) {
 
 		interrupt_level = set_interrupt_level(DISABLED);
 		if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == 0
-			&& cached_path->path > 0) {
+			&& cached_path->path_length > 0) {
 			set_interrupt_level(interrupt_level);
+			semaphore_destroy(cache_update);
 			return 0;
 		}
 		set_interrupt_level(interrupt_level);
 	}
+	semaphore_destroy(cache_update);
 	return -1;
 }
 
