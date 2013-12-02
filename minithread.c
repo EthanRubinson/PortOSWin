@@ -342,9 +342,10 @@ void network_handler(void* arg)
 
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
-	printf("[DEBUG] <Handler> Interrupt Recieved.\n");
+	printf("[DEBUG] <Handler> Start.\n");
 	if (incomming_data == NULL) {
 		printf("[INFO] Interrupt argument is null.\n");
+		printf("[DEBUG] <Handler> End.\n");
 		set_interrupt_level(intlevel);
 		return;
 	}
@@ -365,7 +366,7 @@ void network_handler(void* arg)
 
 			//Check the packet type (Broadcast, Reply, or Data)
 			if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
-				printf("[DEBUG] <Handler> Received a broadcast packet not for us, appending our address on the path.\n");
+				printf("[DEBUG] <Handler> Received a broadcast packet not destined for us, forwarding.\n");
 				//Append ourselves (if we are not allready there) and retransmit
 				current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
 				
@@ -373,6 +374,7 @@ void network_handler(void* arg)
 				for(path_iter = 0; path_iter < current_path_len; path_iter++){
 					unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
 					if (network_address_same(destination_address, my_address)) {
+						printf("[DEBUG] <Handler> We were already on the path for the broadcast, discarding the packet.\n");
 						break;
 					}
 				}
@@ -380,6 +382,7 @@ void network_handler(void* arg)
 				//We made it through the end. None of chained addresses were ours
 				//Append our address into the last spot and transmit it
 				if(path_iter == current_path_len){
+					printf("[DEBUG] <Handler> Appending ourselves to the broadcast packet.\n");
 					pack_address(incomming_data->buffer + 21 + path_iter * 8, my_address);
 					pack_unsigned_int(incomming_data->buffer+17,current_path_len + 1);
 					network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
