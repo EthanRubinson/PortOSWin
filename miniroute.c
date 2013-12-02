@@ -172,10 +172,15 @@ int miniroute_discover_path(network_address_t dest_address) {
 
 void miniroute_evict_cache_entry(void* dest_address) {
 	cache_entry_t cached_path;
+	network_printaddr((unsigned int *) dest_address);
+	printf("\n");
 	if(hashtable_get(route_cache, (char*) dest_address, (void**)&cached_path) < 0) {
 		printf("[ERROR] Trying to evict entry that does not exist in the cache \n");
 		return;
 	}
+	printf("[DEBUG] Evicting cache entry for: ");
+	network_printaddr((unsigned int *) dest_address);
+	printf("\n");
 	semaphore_destroy(cached_path->cache_update);
 	hashtable_remove(route_cache, (char*) dest_address);
 }
@@ -204,7 +209,8 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 		semaphore_V(cached_path->cache_update);
 	}
 	cached_path->num_threads_waiting = 0;
-	register_alarm(3000, miniroute_evict_cache_entry, (char*) updated_path[length - 1]);
+	network_printaddr(updated_path[length - 1]);
+	register_alarm(3000, miniroute_evict_cache_entry, (void*) cached_path->path[length - 1]);
 	printf("[DEBUG] Done with path update \n");
 }
 
