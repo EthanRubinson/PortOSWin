@@ -15,7 +15,7 @@ hashtable_t route_cache;
 struct cache_entry
 {
 	network_address_t dest_address;
-	network_address_t* path[MAX_ROUTE_LENGTH];
+	network_address_t path[MAX_ROUTE_LENGTH];
 	unsigned int path_length;
 	semaphore_t cache_update;
 	unsigned int discovery_id;
@@ -83,7 +83,7 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 
 	// routing path
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++) {
-		pack_address(header->path[i], *(cached_path->path[i]));
+		pack_address(header->path[i], cached_path->path[i]);
 	}
 
 	user_data = (char*) malloc(hdr_len + data_len);
@@ -127,7 +127,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 		network_address_copy(dest_address, cached_path->dest_address);
 		cached_path->discovery_id = discovery_id;
 		cached_path->path_length = -1;
-		network_address_copy(my_address, *cached_path->path[0]);
+		network_address_copy(my_address, cached_path->path[0]);
 		if(hashtable_put(route_cache, (char*) dest_address, (void**) &cached_path) == -1) {
 			free(cached_path);
 			free(header);
