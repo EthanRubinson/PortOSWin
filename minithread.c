@@ -364,6 +364,7 @@ void network_handler(void* arg)
 
 			//Check the packet type (Broadcast, Reply, or Data)
 			if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
+				printf("[DEBUG] <Handler> Received a broadcast packet not for us\n.");
 				//Append ourselves (if we are not allready there) and retransmit
 				current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
 				
@@ -385,6 +386,7 @@ void network_handler(void* arg)
 				
 			}
 			else{
+				printf("[DEBUG] <Handler> Received a reply/data packet not for us\n.");
 				network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 			}
 			
@@ -397,7 +399,7 @@ void network_handler(void* arg)
 
 		//Check if it was a broadcast packet.
 		if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
-			
+			printf("[DEBUG] <Handler> Received a broadcast packet for us, sending reply\n.");
 			//Someone was searching for us, Broadcast a reply
 			incomming_data->buffer[0] = ROUTING_ROUTE_REPLY;
 			
@@ -434,7 +436,7 @@ void network_handler(void* arg)
 		}
 		else if(incomming_data->buffer[0] == ROUTING_ROUTE_REPLY){
 			//We received our reply! Route has been found
-
+			printf("[DEBUG] <Handler> Received a reply packet for us, caching route\n.");
 			//Build the reverse route
 			current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
 			for(path_iter = current_path_len - 1; path_iter >=  0; path_iter--){
@@ -447,6 +449,7 @@ void network_handler(void* arg)
 		}
 		else if(incomming_data->buffer[0] == ROUTING_DATA){
 			//We got some data
+			printf("[DEBUG] <Handler> Got some data for us\n.");
 			//Strip off the routing header
 			incomming_data->size -= sizeof(struct routing_header);
 			memcpy(incomming_data->buffer,incomming_data->buffer+sizeof(struct routing_header),incomming_data->size);
@@ -460,6 +463,7 @@ void network_handler(void* arg)
 		}
 		else{
 			//Packet was junk
+			printf("[DEBUG] <Handler> Received a junk packet (invalid header)\n.");
 			free(incomming_data);
 		}
 	}
