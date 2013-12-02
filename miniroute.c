@@ -211,6 +211,7 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 		printf("[DEBUG] signaling... \n");
 		semaphore_V(cached_path->cache_update);
 	}
+	cached_path->path_length = length;
 	cached_path->num_threads_waiting = 0;
 	network_printaddr(updated_path[length - 1]);
 	register_alarm(3000, miniroute_evict_cache_entry, (void*) cached_path->path[length - 1]);
