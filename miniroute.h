@@ -3,6 +3,9 @@
 
 #include "minimsg.h"
 
+typedef struct routing_header* routing_header_t;
+typedef struct cache_entry* cache_entry_t;
+
 enum routing_packet_type {
   ROUTING_DATA=0,
   ROUTING_ROUTE_DISCOVERY=1,
@@ -26,6 +29,9 @@ struct routing_header
 									   The address of the source is stored in the first position, and the
 									   address of the destination is stored in the last position. */
 };
+
+
+void miniroute_update_path(network_address_t updated_path[], unsigned int path_len);
 
 /* Performs any initialization of the miniroute layer, if required. */
 void miniroute_initialize();

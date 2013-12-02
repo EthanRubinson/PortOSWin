@@ -338,6 +338,7 @@ void network_handler(void* arg)
 	int path_iter;
 	network_address_t current_path_address;
 	char new_path[MAX_ROUTE_LENGTH][8];
+	network_address_t updated_path[MAX_ROUTE_LENGTH];
 
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
@@ -434,9 +435,15 @@ void network_handler(void* arg)
 		else if(incomming_data->buffer[0] == ROUTING_ROUTE_REPLY){
 			//We received our reply! Route has been found
 
-			//TODO FILL THIS IN
-
-
+			//Build the reverse route
+			current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
+			for(path_iter = current_path_len - 1; path_iter >=  0; path_iter--){
+				unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
+				network_address_copy(current_path_address,updated_path[current_path_len - 1 - path_iter]);
+			}
+				
+			miniroute_update_path(updated_path, current_path_len);
+			free(incomming_data);
 		}
 		else if(incomming_data->buffer[0] == ROUTING_DATA){
 			//We got some data
