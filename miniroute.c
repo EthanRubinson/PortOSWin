@@ -138,7 +138,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 	for(i = 0; i < 3; i++){
 		// set alarm for 12 seconds (alarm will signal cache_update)
 		alarm_id = register_alarm(12000, wake_up_route_discovery, (void*) cached_path->cache_update);
-		if(network_bcast_pkt(sizeof(struct routing_header), (char*)header, 22, "Discovering route... \n") != 22) {
+		if(network_bcast_pkt(sizeof(struct routing_header), (char*)header, 22, "Discovering route... \n") != 22 + sizeof(struct routing_header)) {
 			printf("[ERROR] Broadcast discovery packet failed to send \n");
 			free(header);
 			return -1;
