@@ -30,10 +30,11 @@ void miniroute_initialize()
 }
 
 unsigned int get_route_discovery_id() {
+	printf("[DEBUG] Getting routing discovery id \n");
 	semaphore_P(route_id_lock);
 	route_discovery_id++;
-	return route_discovery_id;
 	semaphore_V(route_id_lock);
+	return route_discovery_id;
 }
 
 void wake_up_route_discovery(void* cache_update) {
@@ -119,6 +120,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 	
 	interrupt_level = set_interrupt_level(DISABLED);
 	if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == -1) {
+		printf("[DEBUG] cache entry did not exist, creating entry with path length -1 \n");
 		cached_path = (cache_entry_t) malloc(sizeof(struct cache_entry));
 		cached_path->cache_update = semaphore_create();
 		semaphore_initialize(cached_path->cache_update, 0);
@@ -136,6 +138,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 	set_interrupt_level(interrupt_level);
 
 	for(i = 0; i < 3; i++){
+		printf("[DEBUG] setting alarm, sending broadcast \n");
 		// set alarm for 12 seconds (alarm will signal cache_update)
 		alarm_id = register_alarm(12000, wake_up_route_discovery, (void*) cached_path->cache_update);
 		if(network_bcast_pkt(sizeof(struct routing_header), (char*)header, 22, "Discovering route... \n") != 22 + sizeof(struct routing_header)) {
@@ -143,15 +146,16 @@ int miniroute_discover_path(network_address_t dest_address) {
 			free(header);
 			return -1;
 		}
-
+		printf("[DEBUG] incrementing number of waiting threads \n");
 		// use alarm to V cache_update
 		cached_path->num_threads_waiting++;
 		semaphore_P(cached_path->cache_update);
-
+		printf("[DEBUG] woke up from wait, deregistering alarm \n");
 		interrupt_level = set_interrupt_level(DISABLED);
 		deregister_alarm(alarm_id);
-
+		printf("[DEBUG] Checking hashtable for updated cache entry \n");
 		if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == 0 && cached_path->path_length > 0) {
+			printf("[DEBUG] route found, exiting miniroute_discover_path \n");
 			set_interrupt_level(interrupt_level);
 			return 0;
 		}
@@ -163,6 +167,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 void miniroute_update_path(network_address_t updated_path[], unsigned int length) {
 	int i;
 	cache_entry_t cached_path;
+	printf("[DEBUG] updating path \n");
 	hashtable_get(route_cache, (char*) updated_path[length - 1], (void**)&cached_path);
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
 		network_address_copy(cached_path->path[i], updated_path[i]);
