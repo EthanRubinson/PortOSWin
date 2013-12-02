@@ -342,6 +342,7 @@ void network_handler(void* arg)
 
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
+	printf("[DEBUG] <Handler> Entering Network handler");
 	if (incomming_data == NULL) {
 		printf("[INFO] Interrupt argument is null \n");
 		set_interrupt_level(intlevel);
@@ -467,7 +468,7 @@ void network_handler(void* arg)
 			free(incomming_data);
 		}
 	}
-
+	printf("[DEBUG] <Handler> Exiting Network handler");
 	set_interrupt_level(intlevel);
 }
 
