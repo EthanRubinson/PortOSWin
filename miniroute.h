@@ -31,7 +31,7 @@ struct routing_header
 };
 
 
-void miniroute_update_path(network_address_t updated_path[], unsigned int path_len);
+void miniroute_update_path(network_address_t updated_path[], unsigned int path_len, unsigned int route_ID);
 
 /* Performs any initialization of the miniroute layer, if required. */
 void miniroute_initialize();
