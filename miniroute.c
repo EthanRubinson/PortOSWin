@@ -132,8 +132,9 @@ int miniroute_discover_path(network_address_t dest_address) {
 		network_address_copy(dest_address, cached_path->dest_address);
 		cached_path->discovery_id = discovery_id;
 		cached_path->path_length = -1;
+		cached_path->num_threads_waiting = 3;
 		network_address_copy(my_address, cached_path->path[0]);
-		if(hashtable_put(route_cache, (char*) dest_address, (void**) &cached_path) == -1) {
+		if(hashtable_put(route_cache, (char*) dest_address, (void*) cached_path) == -1) {
 			free(cached_path);
 			free(header);
 			printf("[ERROR] Could not put entry into hashtable \n");
@@ -151,7 +152,8 @@ int miniroute_discover_path(network_address_t dest_address) {
 			free(header);
 			return -1;
 		}
-		printf("[DEBUG] incrementing number of waiting threads \n");
+		printf("[DEBUG] incrementing number of waiting threads, and waiting on semaphore for dest_addr: ");
+		network_printaddr(dest_address);
 		// use alarm to V cache_update
 		cached_path->num_threads_waiting++;
 		semaphore_P(cached_path->cache_update);
@@ -172,12 +174,16 @@ int miniroute_discover_path(network_address_t dest_address) {
 void miniroute_update_path(network_address_t updated_path[], unsigned int length) {
 	int i;
 	cache_entry_t cached_path;
-	printf("[DEBUG] updating path \n");
+	printf("[DEBUG] updating path for: ");
+	network_printaddr(updated_path[length - 1]);
 	hashtable_get(route_cache, (char*) updated_path[length - 1], (void**)&cached_path);
+	printf("[DEBUG] number of threads waiting before path update: %d \n", cached_path->num_threads_waiting);
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
 		network_address_copy(cached_path->path[i], updated_path[i]);
 	}
+	printf("[DEBUG] num threads waiting: %d\n", cached_path->num_threads_waiting);
 	for(i = 0; i < cached_path->num_threads_waiting; i++){
+		printf("[DEBUG] signaling... \n");
 		semaphore_V(cached_path->cache_update);
 	}
 	cached_path->num_threads_waiting = 0;
