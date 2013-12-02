@@ -77,7 +77,7 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 		return -1;
 	}
 	printf("[DEBUG] Creating data packet \n");
-	pack_address(header->destination, cached_path->path[cached_path->path_length - 1]);
+	pack_address(header->destination, cached_path->path[1]);
 	pack_unsigned_int(header->id, 0);
 	if(cached_path == NULL) { printf("[DEBUG] cached path is null \n");}
 	pack_unsigned_int(header->path_len, cached_path->path_length);
