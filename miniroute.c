@@ -6,8 +6,6 @@
 #include "queue.h"
 #include "alarm.h"
 
-typedef struct routing_header* routing_header_t;
-typedef struct cache_entry* cache_entry_t;
 unsigned int route_discovery_id;
 semaphore_t route_id_lock;
 hashtable_t route_cache;
@@ -160,6 +158,15 @@ int miniroute_discover_path(network_address_t dest_address) {
 		set_interrupt_level(interrupt_level);
 	}
 	return -1;
+}
+
+void miniroute_update_path(network_address_t updated_path[], unsigned int length) {
+	int i;
+	cache_entry_t cached_path;
+	hashtable_get(route_cache, (char*) updated_path[length - 1], (void**)&cached_path);
+	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
+		network_address_copy(cached_path->path[i], updated_path[i]);
+	}
 }
 
 /* hashes a network_address_t into a 16 bit unsigned int */
