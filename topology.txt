@@ -1,0 +1,11 @@
+saranac
+heineken
+dosequis
+kingfisher
+tecate
+
+.xx.x
+x.xx.
+xx...
+.x..x
+x..x.
