@@ -77,7 +77,7 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 		return -1;
 	}
 	printf("[DEBUG] Creating data packet \n");
-	pack_address(header->destination, dest_address);
+	pack_address(header->destination, cached_path->path[cached_path->path_length - 1]);
 	pack_unsigned_int(header->id, 0);
 	if(cached_path == NULL) { printf("[DEBUG] cached path is null \n");}
 	pack_unsigned_int(header->path_len, cached_path->path_length);
@@ -200,10 +200,13 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 		return;
 	}
 	printf("[DEBUG] number of threads waiting before path update: %d \n", cached_path->num_threads_waiting);
+	printf("[DEBUG] updating path: ");
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
+		network_printaddr(updated_path[i]);
+		printf(", \n");
 		network_address_copy(updated_path[i], cached_path->path[i]);
 	}
-	printf("[DEBUG] num threads waiting: %d\n", cached_path->num_threads_waiting);
+	printf("\n[DEBUG] num threads waiting: %d\n", cached_path->num_threads_waiting);
 	for(i = 0; i < cached_path->num_threads_waiting; i++){
 		printf("[DEBUG] signaling... \n");
 		semaphore_V(cached_path->cache_update);
