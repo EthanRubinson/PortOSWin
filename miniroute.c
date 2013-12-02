@@ -174,6 +174,9 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
 		network_address_copy(cached_path->path[i], updated_path[i]);
 	}
+	for(i = 0; i < cached_path->num_threads_waiting; i++){
+		semaphore_V(cached_path->cache_update);
+	}
 }
 
 /* hashes a network_address_t into a 16 bit unsigned int */
