@@ -68,6 +68,10 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 		cached_path->num_threads_waiting++;
 		semaphore_P(cached_path->cache_update);
 	}
+	if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == -1) {
+		printf("[ERROR] Could not find path to destination \n");
+		return -1;
+	}
 	set_interrupt_level(interrupt_level);
 
 	header = (routing_header_t) malloc(sizeof(struct routing_header));
@@ -79,10 +83,11 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 	printf("[DEBUG] Creating data packet \n");
 	pack_address(header->destination, dest_address);
 	pack_unsigned_int(header->id, 0);
+	if(cached_path == NULL) { printf("[DEBUG] cached path is null \n");}
 	pack_unsigned_int(header->path_len, cached_path->path_length);
 	header->routing_packet_type = ROUTING_DATA;
 	pack_unsigned_int(header->ttl, MAX_ROUTE_LENGTH);
-
+	
 	// routing path
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++) {
 		pack_address(header->path[i], cached_path->path[i]);
@@ -154,6 +159,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 		}
 		printf("[DEBUG] incrementing number of waiting threads, and waiting on semaphore for dest_addr: ");
 		network_printaddr(dest_address);
+		printf("\n");
 		// use alarm to V cache_update
 		cached_path->num_threads_waiting++;
 		semaphore_P(cached_path->cache_update);
@@ -176,6 +182,7 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 	cache_entry_t cached_path;
 	printf("[DEBUG] updating path for: ");
 	network_printaddr(updated_path[length - 1]);
+	printf("\n");
 	hashtable_get(route_cache, (char*) updated_path[length - 1], (void**)&cached_path);
 	printf("[DEBUG] number of threads waiting before path update: %d \n", cached_path->num_threads_waiting);
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
