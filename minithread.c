@@ -354,6 +354,9 @@ void network_handler(void* arg)
 	network_get_my_address(my_address);
 	unpack_address(incomming_data->buffer + 1, destination_address);
 	
+	printf("[DEBUG] <Handler> Packet destined for ");
+	network_printaddr(destination_address);
+	printf(".\n");
 	if (!network_address_same(destination_address, my_address)) {
 		//The packet is not meant for us. Retransmit
 
@@ -392,7 +395,24 @@ void network_handler(void* arg)
 			}
 			else{
 				printf("[DEBUG] <Handler> Received a reply/data packet not for us, forwarding it.\n");
-				network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
+				
+				//Go through all of the paths in the array to find us
+				for(path_iter = 0; path_iter < current_path_len; path_iter++){
+					unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
+					if (network_address_same(destination_address, my_address)) {
+						unpack_address(incomming_data->buffer + 21 + (path_iter + 1) * 8, current_path_address);
+						break;
+					}
+				}
+				
+				if(path_iter == current_path_len){
+					printf("[DEBUG] <Handler> Not sure how we got this, but we're not in the chain....\n");
+				}
+				else{
+					network_send_pkt(current_path_address,sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
+				}
+				
+				//network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 			}
 			
 		}
