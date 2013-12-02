@@ -20,6 +20,7 @@
 #include "miniheader.h"
 #include <assert.h>
 #include <math.h>
+#include "miniroute.h"
 
 /*
  * A minithread should be defined either in this file or in a private
@@ -329,6 +330,15 @@ void network_handler(void* arg)
 {
 	interrupt_level_t intlevel = set_interrupt_level(DISABLED);
 	unsigned short port_to_process;
+	network_address_t destination_address;
+	network_address_t reply_to_address;
+	network_address_t my_address;
+	unsigned int new_ttl;
+	unsigned int current_path_len;
+	int path_iter;
+	network_address_t current_path_address;
+	char new_path[MAX_ROUTE_LENGTH][8];
+
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
 	if (incomming_data == NULL) {
@@ -336,11 +346,117 @@ void network_handler(void* arg)
 		set_interrupt_level(intlevel);
 		return;
 	}
-	// Get destination port number
-	port_to_process = unpack_unsigned_short(incomming_data->buffer + 19);
-	//printf("[INFO] Packet received for port # %d. Signaling it...\n", port_to_process);
-	minimsg_process(port_to_process, incomming_data);
-	//printf("[INFO] Signaling complete\n");
+	//Strip off the miniroute header
+	network_get_my_address(my_address);
+	unpack_address(incomming_data->buffer + 1, destination_address);
+	
+	if (!network_address_same(destination_address, my_address)) {
+		//The packet is not meant for us. Retransmit
+
+		//Decrement the TTL, if 0, discard, otherwise, retransmit
+		new_ttl = unpack_unsigned_int(incomming_data->buffer + 13) - 1;
+		
+		if(new_ttl != 0){		
+			//The ttl is not 0 and the packet is not meant for us:
+			//Put the decremented ttl back in the packet
+			pack_unsigned_int(incomming_data->buffer + 13,new_ttl);
+
+			//Check the packet type (Broadcast, Reply, or Data)
+			if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
+				//Append ourselves (if we are not allready there) and retransmit
+				current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
+				
+				//Go through all of the paths in the array to ensure none are us
+				for(path_iter = 0; path_iter < current_path_len; path_iter++){
+					unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
+					if (network_address_same(destination_address, my_address)) {
+						break;
+					}
+				}
+				
+				//We made it through the end. None of chained addresses were ours
+				//Append our address into the last spot and transmit it
+				if(path_iter == current_path_len){
+					pack_address(incomming_data->buffer + 21 + path_iter * 8, my_address);
+					pack_unsigned_int(incomming_data->buffer+17,current_path_len + 1);
+					network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(routing_header),incomming_data->buffer + sizeof(struct routing_header));
+				}
+				
+			}
+			else{
+				network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(routing_header),incomming_data->buffer + sizeof(struct routing_header));
+			}
+			
+		}
+		free(incomming_data);
+	}
+	
+	else {
+		//The packet was meant for us
+
+		//Check if it was a broadcast packet.
+		if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
+			
+			//Someone was searching for us, Broadcast a reply
+			incomming_data->buffer[0] = ROUTING_ROUTE_REPLY;
+			
+			//Set the destination address to the person who sent the broadcast
+			unpack_address(incomming_data->buffer + 21, reply_to_address);
+			pack_address(incomming_data->buffer + 1,reply_to_address);
+
+			//Leave the ID the same
+
+			//Reset the TTL
+			pack_unsigned_int(incomming_data->buffer + 13, MAX_ROUTE_LENGTH);
+
+			//Put our address first in the return path
+			pack_address(new_path[0], my_address);
+
+			//Fill the return path (reverse order of current path)
+			current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
+			for(path_iter = current_path_len - 1; path_iter >=  0; path_iter--){
+				unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
+				pack_address(new_path[current_path_len - path_iter], current_path_address); 
+			}
+			
+			//Increment the path length since we added ourself to it
+			pack_unsigned_int(incomming_data->buffer+17,current_path_len + 1);
+				
+			//Rebuild the path in the header with the new reveresed path
+			for(path_iter = 0; path_iter < current_path_len + 1; path_iter++){
+				unpack_address(new_path[path_iter], current_path_address);
+				pack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address); 
+			}
+
+			network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(routing_header),incomming_data->buffer + sizeof(struct routing_header));
+			free(incomming_data);
+		}
+		else if(incomming_data->buffer[0] == ROUTING_ROUTE_REPLY){
+			//We received our reply! Route has been found
+
+			//TODO FILL THIS IN
+
+
+		}
+		else if(incomming_data->buffer[0] == ROUTING_DATA){
+			//We got some data
+			//Strip off the routing header
+			incomming_data->size -= sizeof(struct routing_header);
+			memcpy(incomming_data->buffer,incomming_data->buffer+sizeof(struct routing_header),incomming_data->size);
+			
+			// Get destination port number
+			port_to_process = unpack_unsigned_short(incomming_data->buffer + 19);
+			//printf("[INFO] Packet received for port # %d. Signaling it...\n", port_to_process);
+			minimsg_process(port_to_process, incomming_data);
+			//printf("[INFO] Signaling complete\n");
+
+		}
+		else{
+			//Packet was junk
+			free(incomming_data);
+		}
+	}
+
 	set_interrupt_level(intlevel);
 }
 
@@ -540,6 +656,7 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	minithread_clock_init(clock_handler);
 	// Initialize the network interrupt handler and port arrays
 	network_initialize(network_handler);
+	miniroute_initialize();
 	minimsg_initialize();
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
