@@ -57,6 +57,7 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 
 	interrupt_level = set_interrupt_level(DISABLED);
 	if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == -1) {
+		printf("[DEBUG] Destination is not in route cache, calling discover route \n");
 		set_interrupt_level(interrupt_level);
 		if(miniroute_discover_path(dest_address) < 0) { // may block for up to 36 seconds
 			printf("[ERROR] Could not find path to destination \n");
@@ -75,7 +76,7 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 		printf("[ERROR] Routing header allocation failed \n");
 		return -1;
 	}
-
+	printf("[DEBUG] Creating data packet \n");
 	pack_address(header->destination, dest_address);
 	pack_unsigned_int(header->id, 0);
 	pack_unsigned_int(header->path_len, cached_path->path_length);
@@ -87,11 +88,13 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 		pack_address(header->path[i], cached_path->path[i]);
 	}
 
+	printf("[DEBUG] copying user data \n");
 	user_data = (char*) malloc(hdr_len + data_len);
 	memcpy(user_data, hdr, hdr_len);
 	memcpy(user_data + hdr_len, data, data_len);
 
 	bytes_sent_successfully = network_send_pkt(dest_address, sizeof(struct routing_header), (char*)header, hdr_len + data_len, user_data);
+	printf("[DEBUG] Sent %d bytes successfully \n", bytes_sent_successfully);
 	free(header);
 	free(user_data);
 	return bytes_sent_successfully;
@@ -177,6 +180,8 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 	for(i = 0; i < cached_path->num_threads_waiting; i++){
 		semaphore_V(cached_path->cache_update);
 	}
+	cached_path->num_threads_waiting = 0;
+	printf("[DEBUG] Done with path update \n");
 }
 
 /* hashes a network_address_t into a 16 bit unsigned int */
