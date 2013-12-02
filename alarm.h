@@ -14,6 +14,6 @@ void process_alarms();
 /* register an alarm to go off in "delay" milliseconds, call func(arg) */
 int register_alarm(int delay, void (*func)(void*), void *arg);
 
-void deregister_alarm(int alarmid);
+int deregister_alarm(int alarmid);
 
 #endif
