@@ -63,20 +63,16 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 			printf("[ERROR] Could not find path to destination \n");
 			return -1;
 		}
+		hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path)
 	} else if (hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == 0 && cached_path->path_length < 0) {
 		printf("[DEBUG] Waiting for ongoing route discovery to complete.. \n");
 		cached_path->num_threads_waiting++;
 		semaphore_P(cached_path->cache_update);
 	}
-	if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == -1) {
-		printf("[ERROR] Could not find path to destination \n");
-		return -1;
-	}
 	set_interrupt_level(interrupt_level);
 
 	header = (routing_header_t) malloc(sizeof(struct routing_header));
-
-	if (header == NULL) {
+		if (header == NULL) {
 		printf("[ERROR] Routing header allocation failed \n");
 		return -1;
 	}
@@ -105,10 +101,7 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 	return bytes_sent_successfully;
 }
 
-/* Broadcast packet to discover route, 
- * it seems like we still need a separate semamphore for each thread... ASK TA..
- *
- */
+/* Broadcast packet to discover route */
 int miniroute_discover_path(network_address_t dest_address) {
 	int i;
 	int alarm_id;
@@ -177,13 +170,19 @@ int miniroute_discover_path(network_address_t dest_address) {
 	return -1;
 }
 
-void miniroute_update_path(network_address_t updated_path[], unsigned int length) {
+void miniroute_update_path(network_address_t updated_path[], unsigned int length, unsigned int route_ID) {
 	int i;
 	cache_entry_t cached_path;
 	printf("[DEBUG] updating path for: ");
 	network_printaddr(updated_path[length - 1]);
 	printf("\n");
-	hashtable_get(route_cache, (char*) updated_path[length - 1], (void**)&cached_path);
+	if(hashtable_get(route_cache, (char*) updated_path[length - 1], (void**)&cached_path) < 0) {
+		printf("[ERROR] updating path that does not exist in the cache \n");
+		return;
+	}
+	if(cached_path->discovery_id != route_ID) {
+		printf("[ERROR] Route_reply ID does not match path discovery ID \n");
+	}
 	printf("[DEBUG] number of threads waiting before path update: %d \n", cached_path->num_threads_waiting);
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
 		network_address_copy(updated_path[i], cached_path->path[i]);
