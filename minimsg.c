@@ -3,6 +3,7 @@
  */
 #include "minimsg.h"
 #include "miniheader.h"
+#include "miniroute.h"
 #include "queue.h"
 #include "synch.h"
 
@@ -260,7 +261,7 @@ int minimsg_send(miniport_t local_unbound_port, miniport_t local_bound_port, min
 	pack_address(packet_header->destination_address, local_bound_port->port_structure.bound_port.remote_address);
 
 	// Send packet
-	bytes_sent_successfully = network_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(struct mini_header), (char *)packet_header, len, msg) - sizeof(struct mini_header);
+	bytes_sent_successfully = miniroute_send_pkt(local_bound_port->port_structure.bound_port.remote_address, sizeof(struct mini_header), (char *)packet_header, len, msg) - sizeof(struct mini_header);
 	bytes_sent_successfully = max(bytes_sent_successfully, 0);
 	
 	free(packet_header);
