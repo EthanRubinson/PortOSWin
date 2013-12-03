@@ -213,6 +213,9 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 		printf("[ERROR] Route_reply ID does not match path discovery ID \n");
 		return;
 	}
+	if(cached_path->path_length > 0) {
+		printf("[INFO] Current path already exists and has not expired \n");
+	}
 	//printf("[DEBUG] number of threads waiting before path update: %d \n", cached_path->num_threads_waiting);
 	//printf("[DEBUG] updating path: ");
 	for(i = 0; i < MAX_ROUTE_LENGTH; i++){
