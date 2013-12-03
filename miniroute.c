@@ -14,7 +14,7 @@ struct cache_entry
 {
 	network_address_t dest_address;
 	network_address_t path[MAX_ROUTE_LENGTH];
-	unsigned int path_length;
+	int path_length;
 	semaphore_t cache_update;
 	unsigned int discovery_id;
 	unsigned int num_threads_waiting;
@@ -79,7 +79,6 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 	printf("[DEBUG] Creating data packet \n");
 	pack_address(header->destination, cached_path->path[1]);
 	pack_unsigned_int(header->id, 0);
-	if(cached_path == NULL) { printf("[DEBUG] cached path is null \n");}
 	pack_unsigned_int(header->path_len, cached_path->path_length);
 	header->routing_packet_type = ROUTING_DATA;
 	pack_unsigned_int(header->ttl, MAX_ROUTE_LENGTH);
@@ -160,11 +159,14 @@ int miniroute_discover_path(network_address_t dest_address) {
 		interrupt_level = set_interrupt_level(DISABLED);
 		deregister_alarm(alarm_id);
 		printf("[DEBUG] Checking hashtable for updated cache entry \n");
+		printf("[DEBUG] current path length: %d \n", cached_path->path_length);
 		if(hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path) == 0 && cached_path->path_length > 0) {
+			printf("[DEBUG] current path length: %d \n", cached_path->path_length);
 			printf("[DEBUG] route found, exiting miniroute_discover_path \n");
 			set_interrupt_level(interrupt_level);
 			return 0;
 		}
+		printf("[DEBUG] Timed out .. \n");
 		set_interrupt_level(interrupt_level);
 	}
 	return -1;
