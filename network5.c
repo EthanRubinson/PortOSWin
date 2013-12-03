@@ -23,7 +23,7 @@
 #include <string.h>
 
 #define BUFFER_SIZE 256
-#define MAX_COUNT 1000000
+#define MAX_COUNT 1000
 
 
 char* hostname;

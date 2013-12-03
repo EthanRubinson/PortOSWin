@@ -343,10 +343,10 @@ void network_handler(void* arg)
 
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
-	printf("[DEGUB]] <Handler> Start.\n");
+	//printf("[DEBUG] <Handler> BEGIN NETWORK HANDLER.\n");
 	if (incomming_data == NULL) {
 		printf("[INFO] Interrupt argument is null.\n");
-		printf("[DEGUB]] <Handler> End.\n");
+		//printf("[DEBUG] <Handler> END NETWORK HANDLER.\n");
 		set_interrupt_level(intlevel);
 		return;
 	}
@@ -354,16 +354,18 @@ void network_handler(void* arg)
 	network_get_my_address(my_address);
 	unpack_address(incomming_data->buffer + 1, destination_address);
 	
-	printf("[DEGUB]] <Handler> Packet destined for ");
-	network_printaddr(destination_address);
-	printf(" || We are at ");
+	/*printf("[DEBUG] <Handler> Our Address: ");
 	network_printaddr(my_address);
-	printf(".\n");
+	printf("\n[DEBUG] <Handler> Destination Address: ");
+	network_printaddr(destination_address);
+	printf(".\n");*/
+	
+	new_ttl = unpack_unsigned_int(incomming_data->buffer + 13) - 1;
+		
 	if (!network_address_same(destination_address, my_address)) {
 		//The packet is not meant for us. Retransmit
 
 		//Decrement the TTL, if 0, discard, otherwise, retransmit
-		new_ttl = unpack_unsigned_int(incomming_data->buffer + 13) - 1;
 		
 		if(new_ttl != 0){		
 			//The ttl is not 0 and the packet is not meant for us:
@@ -374,48 +376,70 @@ void network_handler(void* arg)
 			
 			//Check the packet type (Broadcast, Reply, or Data)
 			if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
-				printf("[DEGUB]] <Handler> Received a broadcast packet not destined for us, forwarding.\n");
+				//printf("[DEBUG] <Handler> Received a BROADCAST packet [Source Address: ");
+				unpack_address(incomming_data->buffer + 21, current_path_address);
+				//network_printaddr(current_path_address);
+				//printf("] [Hops left: %d] that was not for us.\n", new_ttl);
 				//Append ourselves (if we are not allready there) and retransmit
 				
+				//printf("[DEBUG] Current address chain [");
 				//Go through all of the paths in the array to ensure none are us
 				for(path_iter = 0; path_iter < current_path_len; path_iter++){
 					unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
-					if (network_address_same(destination_address, my_address)) {
-						printf("[DEGUB]] <Handler> We were already on the path for the broadcast, discarding the packet.\n");
+					//network_printaddr(current_path_address);
+					//printf(" --> ");
+					if (network_address_same(current_path_address, my_address)) {
 						break;
 					}
 				}
-				
+				//printf(" ].\n");
+
 				//We made it through the end. None of chained addresses were ours
 				//Append our address into the last spot and transmit it
 				if(path_iter == current_path_len){
-					printf("[DEGUB]] <Handler> Appending ourselves to the broadcast packet.\n");
+					//printf("[DEBUG] <Handler> Appending ourselves to the path and broadcasting.\n");
 					pack_address(incomming_data->buffer + 21 + path_iter * 8, my_address);
 					pack_unsigned_int(incomming_data->buffer+17,current_path_len + 1);
 
 					network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 				}
+				else{
+					//printf("[DEBUG] <Handler> We were already on the path for the broadcast, discarding the packet.\n");		
+				}
 				
 			}
 			else{
-				printf("[DEGUB]] <Handler> Received a reply/data packet not for us, forwarding it.\n");
+
+				if(incomming_data->buffer[0] == ROUTING_ROUTE_REPLY){
+					//printf("[DEBUG] <Handler> Received a REPLY packet [Source Address: ");
+				}
+				else if(incomming_data->buffer[0] == ROUTING_DATA){
+					//printf("[DEBUG] <Handler> Received a DATA packet [Source Address: ");
+				}
+				else{
+					//printf("[DEBUG] <Handler> Received a ???? packet [Source Address: ");
+				}
+				unpack_address(incomming_data->buffer + 21, current_path_address);
+				//network_printaddr(current_path_address);
+				//printf("] [Hops left: %d] that was not for us.\n", new_ttl);
+
 
 				//Go through all of the paths in the array to find us
 				for(path_iter = 0; path_iter < current_path_len; path_iter++){
 					unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
-					if (network_address_same(destination_address, my_address)) {
+					if (network_address_same(current_path_address, my_address)) {
 						unpack_address(incomming_data->buffer + 21 + (path_iter + 1) * 8, current_path_address);
 						break;
 					}
 				}
 				
 				if(path_iter == current_path_len){
-					printf("[DEGUB]] <Handler> Not sure how we got this, but we're not in the chain....\n");
+					//printf("[DEBUG] <Handler> Not sure how we got this, but we're not in the chain....\n");
 				}
 				else{
-					printf("Sending out a packet to ");
-					network_printaddr(current_path_address);
-					printf(".\n"); 
+					//printf("[DEBUG] <Handler> Routing packet to: ");
+					//network_printaddr(current_path_address);
+					//printf(".\n"); 
 					network_send_pkt(current_path_address,sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 				}
 				
@@ -431,14 +455,19 @@ void network_handler(void* arg)
 
 		//Check if it was a broadcast packet.
 		if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
-			printf("[DEGUB]] <Handler> Received a broadcast packet for us, sending reply.\n");
+
+			//printf("[DEBUG] <Handler> Received a BROADCAST packet [Source Address: ");
+			unpack_address(incomming_data->buffer + 21, current_path_address);
+			//network_printaddr(current_path_address);
+			//printf("] [Hops left: %d] that's for us!\n", new_ttl);
+
 			//Someone was searching for us, Broadcast a reply
 			incomming_data->buffer[0] = ROUTING_ROUTE_REPLY;
 			
 			current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
 
 			//Set the destination address to the person who sent the broadcast
-			unpack_address(incomming_data->buffer + 21 + (current_path_len - 1)*8, reply_to_address);
+			unpack_address(incomming_data->buffer + 21, reply_to_address);
 			pack_address(incomming_data->buffer + 1,reply_to_address);
 
 			//Leave the ID the same
@@ -446,15 +475,21 @@ void network_handler(void* arg)
 			//Reset the TTL
 			pack_unsigned_int(incomming_data->buffer + 13, MAX_ROUTE_LENGTH);
 
+			//printf("[DEBUG] <Handler> Building new chain [ ");
 			//Put our address first in the return path
 			pack_address(new_path[0], my_address);
-
+			//network_printaddr(my_address);
+			//printf(" --> ");
+					
 			//Fill the return path (reverse order of current path)
 			for(path_iter = current_path_len - 1; path_iter >=  0; path_iter--){
 				unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
+				//network_printaddr(current_path_address);
+				//printf(" --> ");
 				pack_address(new_path[current_path_len - path_iter], current_path_address); 
 			}
-			
+			//printf(" ].\n");
+					
 			//Increment the path length since we added ourself to it
 			pack_unsigned_int(incomming_data->buffer+17,current_path_len + 1);
 				
@@ -464,36 +499,48 @@ void network_handler(void* arg)
 				pack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address); 
 			}
 
-			unpack_address(new_path[path_iter], current_path_address);
+			unpack_address(new_path[1], current_path_address);
 
-			printf("Sending out a packet to ");
+			/*printf("[DEBUG] <Handler> Sending out a packet to ");
+			network_printaddr(current_path_address);
+			printf("\n[DEBUG] <Handler> Destined for ");
 			network_printaddr(reply_to_address);
-			printf(".\n"); 
+			printf(".\n"); */
 
 
-			network_send_pkt(reply_to_address,sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
+			network_send_pkt(current_path_address,sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 				
 			//network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 			free(incomming_data);
 		}
 		else if(incomming_data->buffer[0] == ROUTING_ROUTE_REPLY){
 			//We received our reply! Route has been found
-	
+		
+			route_ID = unpack_unsigned_int(incomming_data->buffer + 9);
+
+			//printf("[DEBUG] <Handler> Received a REPLY packet [Source Address: ");
+			unpack_address(incomming_data->buffer + 21, current_path_address);
+			//network_printaddr(current_path_address);
+			//printf("] [Hops left: %d] [ID: %d] that's for us!\n", new_ttl,route_ID);
+
+			//printf("[DEBUG] <Handler> Updating cache with path: [ ");
+
 			//Build the reverse route
 			current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
 			for(path_iter = current_path_len - 1; path_iter >=  0; path_iter--){
 				unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
+				//network_printaddr(current_path_address);
+				//printf(" --> ");
 				network_address_copy(current_path_address,updated_path[current_path_len - 1 - path_iter]);
 			}
-			
-			route_ID = unpack_unsigned_int(incomming_data->buffer + 9);
-			printf("[DEGUB]] <Handler> Received a reply packet with ID: %d for us, caching route.\n", route_ID);
+			//printf(" ].\n");
+				
 			miniroute_update_path(updated_path, current_path_len, route_ID);
 			free(incomming_data);
 		}
 		else if(incomming_data->buffer[0] == ROUTING_DATA){
 			//We got some data
-			printf("[DEGUB]] <Handler> Got some data for us.\n");
+			//printf("[DEBUG] <Handler> Got some data for us.\n");
 			//Strip off the routing header
 			incomming_data->size -= sizeof(struct routing_header);
 			memcpy(incomming_data->buffer,incomming_data->buffer+sizeof(struct routing_header),incomming_data->size);
@@ -507,11 +554,11 @@ void network_handler(void* arg)
 		}
 		else{
 			//Packet was junk
-			printf("[DEGUB]] <Handler> Received a junk packet, discaring.\n");
+			printf("[INFO] <Handler> Received a junk packet, discaring.\n");
 			free(incomming_data);
 		}
 	}
-	printf("[DEGUB]] <Handler> End.\n");
+	//printf("[DEBUG] <Handler> End.\n");
 	set_interrupt_level(intlevel);
 }
 

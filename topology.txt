@@ -1,11 +1,7 @@
-saranac
-heineken
-dosequis
-kingfisher
-tecate
+10.32.32.252
+10.32.55.247
+10.33.130.133
 
-.xx.x
-x.xx.
-xx...
-.x..x
-x..x.
+..x
+..x
+xx.
