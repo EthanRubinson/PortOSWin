@@ -463,7 +463,11 @@ void network_handler(void* arg)
 				pack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address); 
 			}
 
-			network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
+			unpack_address(new_path[path_iter], current_path_address);
+
+			network_send_pkt(reply_to_address,sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
+				
+			//network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 			free(incomming_data);
 		}
 		else if(incomming_data->buffer[0] == ROUTING_ROUTE_REPLY){
