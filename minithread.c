@@ -392,6 +392,7 @@ void network_handler(void* arg)
 					printf("[DEGUB]] <Handler> Appending ourselves to the broadcast packet.\n");
 					pack_address(incomming_data->buffer + 21 + path_iter * 8, my_address);
 					pack_unsigned_int(incomming_data->buffer+17,current_path_len + 1);
+
 					network_bcast_pkt(sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 				}
 				
@@ -464,6 +465,11 @@ void network_handler(void* arg)
 			}
 
 			unpack_address(new_path[path_iter], current_path_address);
+
+			printf("Sending out a packet to ");
+			network_printaddr(reply_to_address);
+			printf(".\n"); 
+
 
 			network_send_pkt(reply_to_address,sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 				
