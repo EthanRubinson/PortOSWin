@@ -412,6 +412,9 @@ void network_handler(void* arg)
 					printf("[DEGUB]] <Handler> Not sure how we got this, but we're not in the chain....\n");
 				}
 				else{
+					printf("Sending out a packet to ");
+					network_printaddr(current_path_address);
+					printf(".\n"); 
 					network_send_pkt(current_path_address,sizeof(struct routing_header), incomming_data->buffer, incomming_data->size - sizeof(struct routing_header),incomming_data->buffer + sizeof(struct routing_header));
 				}
 				
