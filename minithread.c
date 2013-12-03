@@ -431,8 +431,10 @@ void network_handler(void* arg)
 			//Someone was searching for us, Broadcast a reply
 			incomming_data->buffer[0] = ROUTING_ROUTE_REPLY;
 			
+			current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
+
 			//Set the destination address to the person who sent the broadcast
-			unpack_address(incomming_data->buffer + 21, reply_to_address);
+			unpack_address(incomming_data->buffer + 21 + (current_path_len - 1)*8, reply_to_address);
 			pack_address(incomming_data->buffer + 1,reply_to_address);
 
 			//Leave the ID the same
@@ -444,7 +446,6 @@ void network_handler(void* arg)
 			pack_address(new_path[0], my_address);
 
 			//Fill the return path (reverse order of current path)
-			current_path_len = unpack_unsigned_int(incomming_data->buffer + 17);
 			for(path_iter = current_path_len - 1; path_iter >=  0; path_iter--){
 				unpack_address(incomming_data->buffer + 21 + path_iter * 8, current_path_address);
 				pack_address(new_path[current_path_len - path_iter], current_path_address); 
