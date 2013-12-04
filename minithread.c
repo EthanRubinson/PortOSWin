@@ -343,13 +343,13 @@ void network_handler(void* arg)
 
 	// Get incoming packet
 	network_interrupt_arg_t *incomming_data = (network_interrupt_arg_t*) arg;
-	//printf("[DEBUG] <Handler> BEGIN NETWORK HANDLER.\n");
+	
 	if (incomming_data == NULL) {
 		printf("[INFO] Interrupt argument is null.\n");
-		//printf("[DEBUG] <Handler> END NETWORK HANDLER.\n");
 		set_interrupt_level(intlevel);
 		return;
 	}
+
 	//Strip off the miniroute header
 	network_get_my_address(my_address);
 	unpack_address(incomming_data->buffer + 1, destination_address);
@@ -378,6 +378,7 @@ void network_handler(void* arg)
 			if(incomming_data->buffer[0] == ROUTING_ROUTE_DISCOVERY){
 				//printf("[DEBUG] <Handler> Received a BROADCAST packet [Source Address: ");
 				unpack_address(incomming_data->buffer + 21, current_path_address);
+				
 				//network_printaddr(current_path_address);
 				//printf("] [Hops left: %d] that was not for us.\n", new_ttl);
 				//Append ourselves (if we are not allready there) and retransmit

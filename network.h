@@ -26,7 +26,7 @@
 #define BCAST_ENABLED 1
 #define BCAST_USE_TOPOLOGY_FILE 1
 #define BCAST_ADDRESS "192.168.1.255"
-#define BCAST_LOOPBACK 0
+#define BCAST_LOOPBACK 1
 #define BCAST_TOPOLOGY_FILE "topology.txt"
 
 

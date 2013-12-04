@@ -10,6 +10,9 @@ unsigned int route_discovery_id;
 semaphore_t route_id_lock;
 hashtable_t route_cache;
 
+/*
+ * An entry in the cache for paths
+ */
 struct cache_entry
 {
 	network_address_t dest_address;
@@ -29,6 +32,7 @@ void miniroute_initialize()
 	route_cache = hashtable_new(SIZE_OF_ROUTE_CACHE);
 }
 
+/*= a unique route ID*/
 unsigned int get_route_discovery_id() {
 	//printf("[DEBUG] Getting routing discovery id \n");
 	semaphore_P(route_id_lock);
@@ -37,6 +41,7 @@ unsigned int get_route_discovery_id() {
 	return route_discovery_id;
 }
 
+/*alarm signals this to wake up the thread waiting on a cache update*/
 void wake_up_route_discovery(void* cache_update) {
 	semaphore_t update = (semaphore_t) cache_update;
 	semaphore_V(update);
@@ -60,7 +65,7 @@ int miniroute_send_pkt(network_address_t dest_address, int hdr_len, char* hdr, i
 		//printf("[DEBUG] Destination is not in route cache, calling discover route \n");
 		set_interrupt_level(interrupt_level);
 		if(miniroute_discover_path(dest_address) < 0) { // may block for up to 36 seconds
-			printf("[ERROR] Could not find path to destination \n");
+			printf("[ERROR] Could not find path to destination!\n");
 			return -1;
 		}
 		hashtable_get(route_cache, (char*) dest_address, (void**) &cached_path);
@@ -180,6 +185,7 @@ int miniroute_discover_path(network_address_t dest_address) {
 	return -1;
 }
 
+/*Remove a cache entry after 3 seconds*/
 void miniroute_evict_cache_entry(void* dest_address) {
 	cache_entry_t cached_path;
 	
@@ -198,6 +204,7 @@ void miniroute_evict_cache_entry(void* dest_address) {
 	hashtable_remove(route_cache, (char*) dest_address);
 }
 
+/*Update the cache entry for a given destination*/
 void miniroute_update_path(network_address_t updated_path[], unsigned int length, unsigned int route_ID) {
 	int i;
 	cache_entry_t cached_path;
@@ -214,7 +221,7 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 		return;
 	}
 	if(cached_path->path_length > 0) {
-		printf("[INFO] Current path already exists and has not expired \n");
+		//printf("[INFO] Current path already exists and has not expired \n");
 		return;
 	}
 	//printf("[DEBUG] number of threads waiting before path update: %d \n", cached_path->num_threads_waiting);
@@ -224,7 +231,7 @@ void miniroute_update_path(network_address_t updated_path[], unsigned int length
 		printf(", \n");*/
 		network_address_copy(updated_path[i], cached_path->path[i]);
 	}
-	printf("\n[DEBUG] num threads waiting: %d\n", cached_path->num_threads_waiting);
+	//printf("\n[DEBUG] num threads waiting: %d\n", cached_path->num_threads_waiting);
 	for(i = 0; i < cached_path->num_threads_waiting; i++){
 		//printf("[DEBUG] signaling... \n");
 		semaphore_V(cached_path->cache_update);
