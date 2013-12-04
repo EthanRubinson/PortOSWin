@@ -94,7 +94,7 @@ int alarm_list_delete(int id) {
 		previous_alarm = current_alarm;
 		current_alarm = current_alarm->next;
 	}
-	printf("[INFO] ID not found in alarm list, could not delete \n");
+	//printf("[INFO] ID not found in alarm list, could not delete \n");
 	return 0;
 }
 
