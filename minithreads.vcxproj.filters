@@ -129,6 +129,15 @@
     <ClCompile Include="hashtable.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="shell.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="disk.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="minifile.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="defs.h">
@@ -186,6 +195,12 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="hashtable.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="disk.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="minifile.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

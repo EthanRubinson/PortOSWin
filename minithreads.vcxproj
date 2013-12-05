@@ -89,12 +89,14 @@
     <ClCompile Include="conn-network1.c" />
     <ClCompile Include="conn-network2.c" />
     <ClCompile Include="conn-network3.c" />
+    <ClCompile Include="disk.c" />
     <ClCompile Include="end.c" />
     <ClCompile Include="hashtable.c" />
     <ClCompile Include="hash_table_test.c" />
     <ClCompile Include="interrupts.c" />
     <ClCompile Include="machineprimitives.c" />
     <ClCompile Include="machineprimitives_x86.c" />
+    <ClCompile Include="minifile.c" />
     <ClCompile Include="miniheader.c" />
     <ClCompile Include="minimsg.c" />
     <ClCompile Include="miniroute.c" />
@@ -115,6 +117,7 @@
     <ClCompile Include="random.c" />
     <ClCompile Include="read.c" />
     <ClCompile Include="retailTest.c" />
+    <ClCompile Include="shell.c" />
     <ClCompile Include="sieve.c" />
     <ClCompile Include="start.c" />
     <ClCompile Include="synch.c" />
@@ -125,10 +128,12 @@
   <ItemGroup>
     <ClInclude Include="alarm.h" />
     <ClInclude Include="defs.h" />
+    <ClInclude Include="disk.h" />
     <ClInclude Include="hashtable.h" />
     <ClInclude Include="interrupts.h" />
     <ClInclude Include="interrupts_private.h" />
     <ClInclude Include="machineprimitives.h" />
+    <ClInclude Include="minifile.h" />
     <ClInclude Include="miniheader.h" />
     <ClInclude Include="minimsg.h" />
     <ClInclude Include="miniroute.h" />
