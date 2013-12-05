@@ -1,4 +1,21 @@
 #include "minifile.h"
+#include "disk.h"
+
+struct superblock {   
+	union {      
+		struct {         
+			// Members of superblock here
+			int magic_number;
+			size_t size_of_disk;
+			inode_t root;
+			inode_t first_free_inode;
+			data_block_t first_free_data_block;
+		} data;
+		
+		char padding[DISK_BLOCK_SIZE];
+	};
+};
+
 
 /*
  * struct minifile:
