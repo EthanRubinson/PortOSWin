@@ -65,7 +65,7 @@ LIB = kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib s
 # change this to the name of the file you want to link with minithreads, 
 # dropping the ".c": so to use "sieve.c", change to "MAIN = sieve".
 
-MAIN = Chat_Test
+MAIN = shell
 
 SYSTEMOBJ = interrupts.obj \
 
@@ -86,7 +86,9 @@ OBJ = alarm.obj\
 	minisocket.obj \
 	miniroute.obj \
 	read.obj \
-	network.obj
+	network.obj \
+	disk.obj \
+	minifile.obj
 
 all: minithreads.exe
 

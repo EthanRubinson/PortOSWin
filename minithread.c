@@ -21,6 +21,8 @@
 #include <assert.h>
 #include <math.h>
 #include "miniroute.h"
+#include "disk.h"
+#include "minifile.h"
 
 /*
  * A minithread should be defined either in this file or in a private
@@ -79,6 +81,13 @@ semaphore_t cleanup_sem;
 
 /*= pointer to pass as a final_arg. Used as a 'throwaway pointer' in the unlock_and_stop procedure to simplify cleanup logic*/
 int final_proc_args = 0;
+
+/*= filesystem used to read and write to MINIFILESYSTEM */
+disk_t filesystem;
+
+inode_t current_working_directory;
+
+inode_t root_directory;
 
 /*
  *-----------------------
@@ -232,6 +241,18 @@ minithread_t minithread_create(proc_t proc, arg_t arg) {
 /* = The currently running minithread*/
 minithread_t minithread_self() {
 	return current_thread;
+}
+
+disk_t* get_filesystem() {
+	return &filesystem;
+}
+
+inode_t get_current_working_directory() {
+	return current_working_directory;
+}
+
+inode_t get_root_directory() {
+	return root_directory;
 }
 
 /* = ID of the currently running minithread*/
@@ -688,6 +709,10 @@ void clock_handler(void* arg)
 	set_interrupt_level(intlevel);
 }
 
+void disk_handler(void* args){
+	printf("[DEBUG] disk interrupt received \n");
+}
+
 /*
  * Initialization.
  *
@@ -761,6 +786,8 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	network_initialize(network_handler);
 	miniroute_initialize();
 	minimsg_initialize();
+	disk_initialize(&filesystem);
+	install_disk_handler(disk_handler);
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
 	idle_thread_proc(NULL);

@@ -13,6 +13,9 @@
  */
 
 typedef struct minifile* minifile_t;
+typedef enum inode_type* type_t;
+typedef struct data_block* data_block_t;
+typedef struct inode* inode_t;
 
 /* 
  * General requiremens:

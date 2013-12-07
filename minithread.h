@@ -2,6 +2,8 @@
 #define __MINITHREAD_H__
 
 #include "machineprimitives.h"
+#include "disk.h";
+#include "minifile.h";
 
 /*
  * minithread.h:
@@ -46,7 +48,24 @@ extern minithread_t minithread_create(proc_t proc, arg_t arg);
  */
 extern minithread_t minithread_self();
 
+/*
+ * disk_t get_filesystem():
+ * return the filesystem currently being used.
+ */
+extern disk_t* get_filesystem();
 
+/*
+ * inode_t get_current_working_directory():
+ * return the current working directory inode.
+ */
+extern inode_t get_current_working_directory();
+
+/*
+ * inode_t get_root_directory():
+ * return the root ("/") directory inode.
+ */
+extern inode_t get_root_directory();
+ 
 /*
  * int minithread_id():
  *      Return thread identifier of caller thread, for debugging.
