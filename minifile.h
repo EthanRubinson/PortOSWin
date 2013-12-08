@@ -2,6 +2,8 @@
 #define __MINIFILE_H__
 
 #include "defs.h"
+#include "hashtable.h"
+#include "disk.h"
 
 /*
  * Definitions for minifiles.
@@ -12,10 +14,72 @@
  * the file minifile.c
  */
 
+typedef struct superblock* superblock_t;
 typedef struct minifile* minifile_t;
-typedef enum inode_type* type_t;
+typedef enum inode_type type_t;
 typedef struct data_block* data_block_t;
 typedef struct inode* inode_t;
+
+enum inode_type {
+	INODE_FILE = 1, INODE_DIR = 2
+};
+
+typedef struct item{
+	char name[252];
+	unsigned int blocknum;
+} item_t;
+
+struct data_block {
+	union {
+		struct {
+			item_t items[DISK_BLOCK_SIZE / (sizeof(struct item))];
+		} dir_contents;
+		
+		char padding[DISK_BLOCK_SIZE];
+	};
+};
+
+struct inode {
+	union {
+		struct {
+			// inode metadata
+			type_t type;
+			size_t size;
+			unsigned int direct[DISK_BLOCK_SIZE - sizeof(type_t) - sizeof(size_t) - 4];
+			unsigned int indirect;
+		} data;
+		
+		char padding[DISK_BLOCK_SIZE];
+	};
+};
+
+struct superblock {
+	union {
+		struct {
+			// Members of superblock here
+			int magic_number;
+			size_t size_of_disk;
+			unsigned int root;
+			unsigned int next_free_inode;
+			unsigned next_free_data_block;
+		} data;
+		
+		char padding[DISK_BLOCK_SIZE];
+	};
+};
+
+
+/*
+ * struct minifile:
+ *     This is the structure that keeps the information about 
+ *     the opened file like the position of the cursor, etc.
+ */
+
+struct minifile {
+	unsigned int size;
+	unsigned int cursor;
+	unsigned int file_inode;
+};
 
 /* 
  * General requiremens:
@@ -115,6 +179,26 @@ char **minifile_ls(char *path);
  * directory. The caller has the responsibility to free up this buffer when done.
  */
 char* minifile_pwd(void);
+
+/*
+ * Returns a new superblock, if filesystem does not exists.
+ * Otherwise returns supeblock of existing filesystem.
+ */
+superblock_t superblock_new(void);
+
+/*
+ * Initializes minifile
+ */
+void minifile_initialize(void);
+
+/*
+ * returns the hashtable of semaphores blocked on reads
+ */
+hashtable_t get_pending_reads(void);
+
+int protected_write(disk_t* disk, int blocknum, char* buffer);
+
+hashtable_t get_pending_writes(void);
 
 
 #endif /* __MINIFILE_H__ */

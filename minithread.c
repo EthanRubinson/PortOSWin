@@ -23,6 +23,7 @@
 #include "miniroute.h"
 #include "disk.h"
 #include "minifile.h"
+#include "hashtable.h"
 
 /*
  * A minithread should be defined either in this file or in a private
@@ -88,6 +89,8 @@ disk_t filesystem;
 inode_t current_working_directory;
 
 inode_t root_directory;
+
+superblock_t super_block;
 
 /*
  *-----------------------
@@ -710,7 +713,28 @@ void clock_handler(void* arg)
 }
 
 void disk_handler(void* args){
+	int interrupt_level = set_interrupt_level(DISABLED);
+	char key[5];
+	disk_interrupt_arg_t* interrupt = (disk_interrupt_arg_t*) args;
+	semaphore_t wait;
+	sprintf(key, "%d", interrupt->request.blocknum);
+
+	if(interrupt->request.type == DISK_READ) {
+		if(hashtable_get(get_pending_reads(), key, (void**) &wait) != 0){
+			return;
+		} else {
+			semaphore_V(wait);
+		}
+	} else {
+		if(hashtable_get(get_pending_writes(), key, (void**) &wait) != 0){
+			return;
+		} else {
+			semaphore_V(wait);
+		}
+	}
+	
 	printf("[DEBUG] disk interrupt received \n");
+	set_interrupt_level(interrupt_level);
 }
 
 /*
@@ -788,6 +812,8 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	minimsg_initialize();
 	disk_initialize(&filesystem);
 	install_disk_handler(disk_handler);
+	minifile_initialize();
+
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
 	idle_thread_proc(NULL);

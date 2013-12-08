@@ -19,10 +19,10 @@ double reordering_rate = 0.0;
    then call disk_initialize. Upon successful startup, disk_flags and disk_size will
    be correctly initialized.
  */
-int use_existing_disk;	/* Set to 1 if using an existing disk, 0 to create a new one */
-const char* disk_name;	/* Windows filename that stores your virtual disk */
-int disk_flags;			/* Set to DISK_READWRITE or DISK_READONLY */
-int disk_size;			/* Set to the number of blocks allocated for disk */
+int use_existing_disk = 0;	/* Set to 1 if using an existing disk, 0 to create a new one */
+const char* disk_name = "MINIFILESYSTEM";	/* Windows filename that stores your virtual disk */
+int disk_flags = DISK_READWRITE;			/* Set to DISK_READWRITE or DISK_READONLY */
+int disk_size = 4096;			/* Set to the number of blocks allocated for disk */
 
 void start_disk_poll(disk_t* disk); /* forward declaration */
 
