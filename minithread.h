@@ -65,6 +65,22 @@ extern inode_t get_current_working_directory();
  * return the root ("/") directory inode.
  */
 extern inode_t get_root_directory();
+
+/*
+ * char* get_current_path():
+ * returns the current path
+ */
+extern char* get_current_path();
+
+/*
+ * return the super block
+ */
+extern superblock_t get_superblock(void);
+
+/*
+ * return the current inode blocknum
+ */
+unsigned int get_current_blocknum(void);
  
 /*
  * int minithread_id():

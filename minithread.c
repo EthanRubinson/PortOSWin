@@ -92,6 +92,10 @@ inode_t root_directory;
 
 superblock_t super_block;
 
+char current_path[256];
+
+unsigned int current_blocknum;
+
 /*
  *-----------------------
  * minithread functions
@@ -795,11 +799,7 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 		semaphore_destroy(cleanup_sem);
 		free(idle_thread);
 		return;
-	}
-
-	//Create the mainproc thread
-	minithread_fork(mainproc, mainarg);
-	
+	}	
 	create_and_initialize_alarms();
 
 	//Set the current priority level to 0 and initialize the clock handler
@@ -812,11 +812,42 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	minimsg_initialize();
 	disk_initialize(&filesystem);
 	install_disk_handler(disk_handler);
-	minifile_initialize();
+	minifile_initialize();  
+	sprintf(current_path, "/");
 
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
+
+	printf("herhd\n");
+	super_block = (superblock_t)malloc(sizeof(struct superblock));
+	protected_read(&filesystem, -1, super_block->padding);
+
+	printf("[DEBUG] Super block metadata: \n");
+	printf("[DEBUG] Magic number: %d \n", super_block->data.magic_number);
+	printf("[DEBUG] next free data: %d \n", super_block->data.next_free_data_block);
+	printf("[DEBUG] next free inode: %d \n", super_block->data.next_free_inode);
+	printf("[DEBUG] root: %d \n", super_block->data.root);
+	printf("[DEBUG] size: %d \n", super_block->data.size_of_disk);
+
+	current_blocknum = 0;
+	current_working_directory = (inode_t)malloc(sizeof(struct inode));
+	protected_read(&filesystem,super_block->data.root,current_working_directory->padding);
+	//Create the mainproc thread
+	minithread_fork(mainproc, mainarg);
+	
 	idle_thread_proc(NULL);
+}
+
+char* get_current_path(void) {
+	return current_path;
+}
+
+superblock_t get_superblock(void) {
+	return super_block;
+}
+
+unsigned int get_current_blocknum(void) {
+	return current_blocknum;
 }
 
 /*

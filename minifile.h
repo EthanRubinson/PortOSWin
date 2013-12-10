@@ -200,5 +200,6 @@ int protected_write(disk_t* disk, int blocknum, char* buffer);
 
 hashtable_t get_pending_writes(void);
 
+int protected_read(disk_t* disk, int blocknum, char* buffer);
 
 #endif /* __MINIFILE_H__ */
