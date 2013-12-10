@@ -55,13 +55,22 @@ char* get_first_token(char* string) {
 	return buffer;
 }
 
+
 /* Make sure that path does not begin with slash */
 inode_t resolve_absolute_path(char* path, inode_t cwd) {
 	int i,j;
-	inode_t resolved_path_inode;
+	inode_t resolved_path_inode = (inode_t) malloc(sizeof(struct inode));
+	data_block_t temp_data_block = (data_block_t) malloc(sizeof(struct data_block));
+	inode_t cwd_copy = (inode_t) malloc(sizeof(struct inode));
+
+	memcpy(cwd_copy,cwd,sizeof(struct inode));
+	free(cwd);
 
 	if(path[0] == '\0') {
 		printf("[INFO] Could not resolve empty path \n");
+		free(temp_data_block);
+		free(cwd_copy);
+		free(resolved_path_inode);
 		return NULL;
 	}
 
@@ -70,23 +79,43 @@ inode_t resolve_absolute_path(char* path, inode_t cwd) {
 
 		// directory data block contents (items)
 		for(j = 0; j < DISK_BLOCK_SIZE / (sizeof(struct item)); j++) {
-			/*
 			// item (match name)
 			if(strlen(path) == 0) {
-				return cwd;
-			} else if(0 == strcmp(cwd->data.direct[i]->dir_contents.items[j].name, get_first_token(path))) {
-				resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, cwd->data.direct[i]->dir_contents.items[j].pointer);
-				//path += strlen(get_first_token(path)) + 1;
-				//i = 0;
-				return resolved_path_inode;
-			} else if (cwd->data.direct[i]->dir_contents.items[j].pointer == (inode_t) 1) {
-				continue;
-			} else if (cwd->data.direct[i]->dir_contents.items[j].pointer == 0) {
-				printf("[DEBUG] Path could not be resolved \n");
-				return NULL;
-			} else {
-				continue;
+				free(temp_data_block);
+				free(resolved_path_inode);
+				return cwd_copy;
 			}
+			else{
+				protected_read(get_filesystem(),cwd_copy->data.direct[i],temp_data_block->padding);
+				
+				// item (match name)
+				if(0 == strcmp(temp_data_block->dir_contents.items[j].name, get_first_token(path))) {
+
+					protected_read(get_filesystem(),temp_data_block->dir_contents.items[j].blocknum,resolved_path_inode->padding);
+					
+					resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode);
+					//path += strlen(get_first_token(path)) + 1;
+					//i = 0;
+					free(temp_data_block);
+					free(cwd_copy);
+					return resolved_path_inode;
+				} 
+				else if (temp_data_block->dir_contents.items[j].blocknum ==  1) {
+					continue;
+				}
+				else if (temp_data_block->dir_contents.items[j].blocknum == 0) {
+					printf("[DEBUG] Path could not be resolved \n");
+					free(temp_data_block);
+					free(cwd_copy);
+					free(resolved_path_inode);
+					return NULL;
+				}
+				else {
+					continue;
+				}
+			}
+
+			
 			/*for(k = 0;;k++) {
 				if((cwd->data.direct[i]->dir_contents.items[j].name[k] != NULL 
 					&& path[match_char] != NULL 
@@ -105,10 +134,18 @@ inode_t resolve_absolute_path(char* path, inode_t cwd) {
 
 inode_t resolve_relative_path(char* path, inode_t cwd) {
 	int i,j;
-	inode_t resolved_path_inode;
+	inode_t resolved_path_inode = (inode_t) malloc(sizeof(struct inode));
+	data_block_t temp_data_block = (data_block_t) malloc(sizeof(struct data_block));
+	inode_t cwd_copy = (inode_t) malloc(sizeof(struct inode));
+
+	memcpy(cwd_copy,cwd,sizeof(struct inode));
+	free(cwd);
 
 	if(path[0] == '\0') {
 		printf("[INFO] Could not resolve empty path \n");
+		free(temp_data_block);
+		free(cwd_copy);
+		free(resolved_path_inode);
 		return NULL;
 	}
 
@@ -117,35 +154,41 @@ inode_t resolve_relative_path(char* path, inode_t cwd) {
 
 		// directory data block contents (items)
 		for(j = 0; j < DISK_BLOCK_SIZE / (sizeof(struct item)); j++) {
-			/*
 			// item (match name)
 			if(strlen(path) == 0) {
+				free(temp_data_block);
+				free(resolved_path_inode);
 				return cwd;
-			} else if(0 == strcmp(cwd->data.direct[i]->dir_contents.items[j].name, get_first_token(path))) {
-				resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, cwd->data.direct[i]->dir_contents.items[j].pointer);
-				//path += strlen(get_first_token(path)) + 1;
-				//i = 0;
-				return resolved_path_inode;
-			} else if (cwd->data.direct[i]->dir_contents.items[j].pointer == (inode_t) 1) {
-				continue;
-			} else if (cwd->data.direct[i]->dir_contents.items[j].pointer == 0) {
-				printf("[DEBUG] Path could not be resolved \n");
-				return NULL;
-			} else {
-				continue;
 			}
-			/*for(k = 0;;k++) {
-				if((cwd->data.direct[i]->dir_contents.items[j].name[k] != NULL 
-					&& path[match_char] != NULL 
-					&& cwd->data.direct[i]->dir_contents.items[j].name[k] != path[match_char])
-					||
-					(cwd->data.direct[i]->dir_contents.items[j].name[k] == NULL
-					^ path[match_char] == NULL)) {
-					break;
-				} else {
+			else{
+				protected_read(get_filesystem(),cwd->data.direct[i],temp_data_block->padding);
+				
+				// item (match name)
+				if(0 == strcmp(temp_data_block->dir_contents.items[j].name, get_first_token(path))) {
 
+					protected_read(get_filesystem(),temp_data_block->dir_contents.items[j].blocknum,resolved_path_inode->padding);
+					
+					resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode);
+					//path += strlen(get_first_token(path)) + 1;
+					//i = 0;
+					free(temp_data_block);
+					free(cwd_copy);
+					return resolved_path_inode;
+				} 
+				else if (temp_data_block->dir_contents.items[j].blocknum ==  1) {
+					continue;
 				}
-			}*/
+				else if (temp_data_block->dir_contents.items[j].blocknum == 0) {
+					printf("[DEBUG] Path could not be resolved \n");
+					free(temp_data_block);
+					free(cwd_copy);
+					free(resolved_path_inode);
+					return NULL;
+				}
+				else {
+					continue;
+				}
+			}
 		}
 	}
 
@@ -154,6 +197,10 @@ inode_t resolve_relative_path(char* path, inode_t cwd) {
 
 minifile_t minifile_creat(char *filename){
 	printf("[DEBUG] Entered command: creat \n");
+	
+
+
+
 	return NULL;
 }
 
@@ -228,10 +275,52 @@ int minifile_cd(char *path){
 }
 
 char **minifile_ls(char *path){
-	return NULL;
+	inode_t returned_node;
+	char* buffer;
+	char* *list;
+	int block_iter = 0;
+	int item_iter = 0;
+
+	if(path[0] == '\\'){
+		returned_node = resolve_absolute_path(path, get_current_working_directory());
+	}
+	else{
+		returned_node = resolve_relative_path(path, get_current_working_directory());
+	}
+
+	if(returned_node == NULL){
+		list = (char* *)malloc(sizeof(char*));
+		list[0] = NULL;
+		return list;
+	}
+
+	list = (char* *)malloc(sizeof(returned_node->data.size + 1) * sizeof(char*));
+	list[returned_node->data.size] = NULL;
+
+	if(returned_node->data.size == 0){
+		free(returned_node);
+		return list;
+	}
+	
+	protected_read(get_filesystem(),returned_node->data.direct[block_iter],buffer);
+	block_iter++;
+	while(((data_block_t)buffer)->dir_contents.items[item_iter].blocknum != 0){
+		
+		if(((data_block_t)buffer)->dir_contents.items[item_iter].blocknum != 1){
+			list[item_iter] = ((data_block_t)buffer)->dir_contents.items->name;
+		}
+		item_iter++;
+		if(item_iter == DISK_BLOCK_SIZE / sizeof(struct item)){
+			item_iter = 0;
+			protected_read(get_filesystem(),returned_node->data.direct[block_iter],buffer);
+			block_iter++;
+		}
+	}
+
+	free(returned_node);
+	return list;
 }
 
 char* minifile_pwd(void){
 	return NULL;
-	//return get_current_working_directory()->data.
 }
