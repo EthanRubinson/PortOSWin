@@ -81,7 +81,17 @@ extern superblock_t get_superblock(void);
  * return the current inode blocknum
  */
 unsigned int get_current_blocknum(void);
+
+/*
+ * set the current blocknum
+ */
+void set_current_blocknum(unsigned int blocknum);
  
+/*
+ * set current working directory
+ */
+void set_current_working_directory(inode_t cwd);
+
 /*
  * int minithread_id():
  *      Return thread identifier of caller thread, for debugging.

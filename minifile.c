@@ -58,11 +58,16 @@ char* get_first_token(char* string) {
 
 
 /* Make sure that path does not begin with slash */
-inode_t resolve_absolute_path(char* path, inode_t cwd, int get_file) {
+inode_t resolve_absolute_path(char* path, inode_t cwd, int get_file, unsigned int* resolved_blocknum) {
 	int i,j;
 	inode_t resolved_path_inode = (inode_t) malloc(sizeof(struct inode));
 	data_block_t temp_data_block = (data_block_t) malloc(sizeof(struct data_block));
 	inode_t cwd_copy = (inode_t) malloc(sizeof(struct inode));
+
+	if(cwd->data.size == 0) {
+		return NULL;
+	}
+
 	printf("[DEBUG] resolve absolute path entered \n");
 	memcpy(cwd_copy,cwd,sizeof(struct inode));
 	//free(cwd);
@@ -94,20 +99,20 @@ inode_t resolve_absolute_path(char* path, inode_t cwd, int get_file) {
 				if(temp_data_block == NULL) {
 					printf("temp data is null \n");
 				}
-				printf("here \n");
 				// item (match name)
 				if(0 == strcmp(temp_data_block->dir_contents.items[j].name, get_first_token(path))) {
 					printf("[DEBUG] match \n");
 					protected_read(get_filesystem(),temp_data_block->dir_contents.items[j].blocknum,resolved_path_inode->padding);
 					
-					resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode, get_file);
+					*resolved_blocknum = temp_data_block->dir_contents.items[j].blocknum;
+					resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode, get_file, resolved_blocknum);
 					//path += strlen(get_first_token(path)) + 1;
 					//i = 0;
 					free(temp_data_block);
 					free(cwd_copy);
 					return resolved_path_inode;
 				} 
-				else if (temp_data_block->dir_contents.items[j].blocknum ==  1) {
+				else if (temp_data_block->dir_contents.items[j].blocknum ==  INT_MAX) {
 					printf("[DEBUG] placeholder entry \n");
 					continue;
 				}
@@ -128,11 +133,15 @@ inode_t resolve_absolute_path(char* path, inode_t cwd, int get_file) {
 	return NULL;
 }
 
-inode_t resolve_relative_path(char* path, inode_t cwd, int get_file) {
+inode_t resolve_relative_path(char* path, inode_t cwd, int get_file, unsigned int* resolved_blocknum) {
 	int i,j;
 	inode_t resolved_path_inode = (inode_t) malloc(sizeof(struct inode));
 	data_block_t temp_data_block = (data_block_t) malloc(sizeof(struct data_block));
 	inode_t cwd_copy = (inode_t) malloc(sizeof(struct inode));
+
+	if(cwd->data.size == 0) {
+		return NULL;
+	}
 
 	memcpy(cwd_copy,cwd,sizeof(struct inode));
 	//free(cwd);
@@ -164,7 +173,8 @@ inode_t resolve_relative_path(char* path, inode_t cwd, int get_file) {
 
 					protected_read(get_filesystem(),temp_data_block->dir_contents.items[j].blocknum,resolved_path_inode->padding);
 					
-					resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode, get_file);
+					*resolved_blocknum = temp_data_block->dir_contents.items[j].blocknum;
+					resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode, get_file, resolved_blocknum);
 					//path += strlen(get_first_token(path)) + 1;
 					//i = 0;
 					free(temp_data_block);
@@ -193,10 +203,6 @@ inode_t resolve_relative_path(char* path, inode_t cwd, int get_file) {
 
 minifile_t minifile_creat(char *filename){
 	printf("[DEBUG] Entered command: creat \n");
-	
-
-
-
 	return NULL;
 }
 
@@ -251,25 +257,29 @@ int minifile_unlink(char *filename){
 }
 
 int minifile_mkdir(char *dirname){
-	int i;
+	int i, j;
+	unsigned int temp = 2;
+	int dir_made = 0;
 	unsigned int free_block;
 	unsigned int free_inode;
 	char buffer[DISK_BLOCK_SIZE];
 	inode_t parent_dir = get_current_working_directory();
-	inode_t new_inode;
 	superblock_t super_block = get_superblock();
-	
+	printf("[DEBUG] got superblock \n");
 	for(i = 0; i < strlen(dirname); i++) {
 		if(dirname[i] == '/' || dirname[i] == '\\' || dirname[i] == ' ' || dirname[i] == '*') {
 			printf("[ERROR] invalid directory name \n");
 			return -1;
 		}
 	}
-	if(resolve_relative_path(dirname, get_current_working_directory(), 1) != NULL) {
+	printf("[DEBUG] resolving path, from curren dir: %p \n", get_current_working_directory());
+	if(resolve_relative_path(dirname, get_current_working_directory(), 1, &temp) != NULL) {
 		printf("[INFO] Directory name already exists \n");
 		return -1;
 	}
+	printf("[DEBUG] path resolved \n");
 	if(parent_dir->data.size == 0) {
+		printf("[DEBUG] parent dir has no entries \n");
 		free_block = super_block->data.next_free_data_block;
 		protected_read(get_filesystem(), free_block, buffer);
 		super_block->data.next_free_data_block = buffer[0] << 3 || buffer[1] << 2 || buffer[2] << 1 || buffer[3];
@@ -277,26 +287,58 @@ int minifile_mkdir(char *dirname){
 		free_inode = super_block->data.next_free_inode;
 		protected_read(get_filesystem(), free_inode, buffer);
 		super_block->data.next_free_inode = buffer[0] << 3 || buffer[1] << 2 || buffer[2] << 1 || buffer[3];
-		
+		printf("[DEBUG] superblock modified \n");
 		protected_write(get_filesystem(), -1, super_block->padding);
 		parent_dir->data.direct[0] = free_block;
-
+		printf("[DEBUG] superblock written \n");
 		memset(buffer, 0, DISK_BLOCK_SIZE);
 		memcpy(buffer, dirname, strlen(dirname) + 1);
-		memcpy(buffer+252, (void*)("%d", free_inode), 4);
-		
+		((data_block_t) buffer)->dir_contents.items[0].blocknum = free_inode;
+		printf("[DEBUG] free data block modified \n");
 		protected_write(get_filesystem(), free_block, buffer);
-
+		printf("[DEBUG] data block written \n");
 		memset(buffer, 0, DISK_BLOCK_SIZE);
 
-		new_inode = (inode_t) buffer;
-		new_inode->data.type = INODE_DIR;
-
+		((inode_t) buffer)->data.type = INODE_DIR;
+		((inode_t) buffer)->data.size = 0;
+		printf("[DEBUG] free inode modified \n");
 		protected_write(get_filesystem(), free_inode, buffer);
+		printf("[DEBUG] inode written \n");
+
+		parent_dir->data.size++;
+		protected_write(get_filesystem(), get_current_blocknum(), parent_dir->padding);
 	} else {
 		// if inode has data in it already
-	}
+		i = 0;
+		while(parent_dir->data.direct[i] != 0 && i < DISK_BLOCK_SIZE - sizeof(type_t) - sizeof(size_t) - 4) {
 
+			protected_read(get_filesystem(), parent_dir->data.direct[i], buffer);
+
+			for(j = 0; j < DISK_BLOCK_SIZE / (sizeof(struct item)); j++) {
+				if(((data_block_t) buffer)->dir_contents.items[j].blocknum == 0 || ((data_block_t) buffer)->dir_contents.items[j].blocknum == INT_MAX) {
+					memcpy(((data_block_t) buffer)->dir_contents.items[j].name, dirname, strlen(dirname) + 1);
+					((data_block_t) buffer)->dir_contents.items[j].blocknum = super_block->data.next_free_inode;
+					protected_write(get_filesystem(), parent_dir->data.direct[i], buffer);
+
+					free_inode = super_block->data.next_free_inode;
+					protected_read(get_filesystem(), free_inode, buffer);
+					super_block->data.next_free_inode = buffer[0] << 3 || buffer[1] << 2 || buffer[2] << 1 || buffer[3];
+					protected_write(get_filesystem(), -1, super_block->padding);
+
+					memset(buffer, 0, DISK_BLOCK_SIZE);
+					((inode_t) buffer)->data.size = 0;
+					((inode_t) buffer)->data.type = INODE_DIR;
+					protected_write(get_filesystem(), free_inode, buffer);
+
+					parent_dir->data.size++;
+					protected_write(get_filesystem(), get_current_blocknum(), parent_dir->padding);
+
+					return 1;
+				}
+			}
+			i++;
+		}
+	}
 	return -1;
 }
 
@@ -311,22 +353,37 @@ int minifile_stat(char *path){
 } 
 
 int minifile_cd(char *path){
-	printf("[DEBUG] Entered command: cd \n");
-	return -1;
+	unsigned int temp = 0;
+	inode_t returned_node;
+	if(path[0] == '/'){
+		returned_node = resolve_absolute_path(path+1, get_root_directory(), 0, &temp);
+	}
+	else{
+		returned_node = resolve_relative_path("lol", get_current_working_directory(), 0, &temp);
+	}
+	if(returned_node == NULL) {
+		printf("[INFO] directory not found \n");
+		return -1;
+	} else {
+		set_current_blocknum(temp);
+		set_current_working_directory(returned_node);
+		return 1;
+	}
 }
 
 char **minifile_ls(char *path){
 	inode_t returned_node;
-	char* buffer;
+	unsigned int temp = 2;
+	char buffer[DISK_BLOCK_SIZE];
 	char* *list;
 	int block_iter = 0;
 	int item_iter = 0;
 	printf("[DEBUG] ls command entered \n");
 	if(path[0] == '/'){
-		returned_node = resolve_absolute_path(path+1, get_current_working_directory(), 0);
+		returned_node = resolve_absolute_path(path+1, get_root_directory(), 0, &temp);
 	}
 	else{
-		returned_node = resolve_relative_path(path, get_current_working_directory(), 0);
+		returned_node = resolve_relative_path(path, get_current_working_directory(), 0, &temp);
 	}
 	printf("[DEBUG] path resolved \n");
 	if(returned_node == NULL){
@@ -334,21 +391,26 @@ char **minifile_ls(char *path){
 		list[0] = NULL;
 		return list;
 	}
-	printf("[DEBUG] inode found \n");
-	list = (char* *)malloc(sizeof(returned_node->data.size + 1) * sizeof(char*));
+	printf("[DEBUG] inode found, size: %d\n", returned_node->data.size);
+	list = (char* *)malloc((returned_node->data.size + 1) * sizeof(char*));
 	list[returned_node->data.size] = NULL;
 
 	if(returned_node->data.size == 0){
 		free(returned_node);
 		return list;
 	}
-	printf("[DEBUG] reading entries \n");
+	printf("[DEBUG] reading entries from block: %d \n", block_iter);
 	protected_read(get_filesystem(),returned_node->data.direct[block_iter],buffer);
+	printf("[DEBUG] read direct block \n");
 	block_iter++;
 	while(((data_block_t)buffer)->dir_contents.items[item_iter].blocknum != 0){
-		
-		if(((data_block_t)buffer)->dir_contents.items[item_iter].blocknum != 1){
-			list[item_iter] = ((data_block_t)buffer)->dir_contents.items->name;
+		printf("[DEBUG] inside while \n");
+		if(((data_block_t)buffer)->dir_contents.items[item_iter].blocknum != INT_MAX){
+			printf("[DEBUG] inside if \n");
+			list[item_iter] = (char*)malloc(252);
+			memset(list[item_iter], 0, 252);
+			memcpy(list[item_iter], ((data_block_t)buffer)->dir_contents.items[item_iter].name, strlen(((data_block_t)buffer)->dir_contents.items[item_iter].name));
+			//printf("[DEBUG] item name: %s \n", ((data_block_t)buffer)->dir_contents.items[item_iter].name);
 		}
 		item_iter++;
 		if(item_iter == DISK_BLOCK_SIZE / sizeof(struct item)){

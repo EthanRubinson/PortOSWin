@@ -817,21 +817,24 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
+	if(use_existing_disk == 1) {
+		printf("herhd\n");
+		super_block = (superblock_t)malloc(sizeof(struct superblock));
+		protected_read(&filesystem, -1, super_block->padding);
 
-	printf("herhd\n");
-	super_block = (superblock_t)malloc(sizeof(struct superblock));
-	protected_read(&filesystem, -1, super_block->padding);
+		printf("[DEBUG] Super block metadata: \n");
+		printf("[DEBUG] Magic number: %d \n", super_block->data.magic_number);
+		printf("[DEBUG] next free data: %d \n", super_block->data.next_free_data_block);
+		printf("[DEBUG] next free inode: %d \n", super_block->data.next_free_inode);
+		printf("[DEBUG] root: %d \n", super_block->data.root);
+		printf("[DEBUG] size: %d \n", super_block->data.size_of_disk);
 
-	printf("[DEBUG] Super block metadata: \n");
-	printf("[DEBUG] Magic number: %d \n", super_block->data.magic_number);
-	printf("[DEBUG] next free data: %d \n", super_block->data.next_free_data_block);
-	printf("[DEBUG] next free inode: %d \n", super_block->data.next_free_inode);
-	printf("[DEBUG] root: %d \n", super_block->data.root);
-	printf("[DEBUG] size: %d \n", super_block->data.size_of_disk);
-
-	current_blocknum = 0;
-	current_working_directory = (inode_t)malloc(sizeof(struct inode));
-	protected_read(&filesystem,super_block->data.root,current_working_directory->padding);
+		current_blocknum = 0;
+		current_working_directory = (inode_t)malloc(sizeof(struct inode));
+		root_directory = (inode_t)malloc(sizeof(struct inode));
+		protected_read(&filesystem,super_block->data.root,current_working_directory->padding);
+		protected_read(&filesystem,super_block->data.root,root_directory->padding);
+	}
 	//Create the mainproc thread
 	minithread_fork(mainproc, mainarg);
 	
@@ -848,6 +851,15 @@ superblock_t get_superblock(void) {
 
 unsigned int get_current_blocknum(void) {
 	return current_blocknum;
+}
+
+void set_current_blocknum(unsigned int blocknum) {
+	current_blocknum = blocknum;
+}
+
+void set_current_working_directory(inode_t cwd) {
+	memcpy(current_working_directory->padding, cwd->padding, DISK_BLOCK_SIZE);
+	free(cwd);
 }
 
 /*
