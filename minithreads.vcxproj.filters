@@ -138,6 +138,9 @@
     <ClCompile Include="minifile.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="mkfs.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="defs.h">

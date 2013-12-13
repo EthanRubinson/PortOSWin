@@ -182,7 +182,9 @@ int shell(int *g) {
 		  char **files = minifile_ls(arg1);
 		  printf("File listing for %s\n", arg1);
 		  for(i = 0; files != NULL && files[i] != NULL; ++i) {
-		    printf("\t%s\n",files[i]);
+			printf("[DEBUG] inside ls for loop \n");
+			  printf("\t%c\n",files[i][0]);
+		    printf("\t%s\n\n",files[i]);
 		    free(files[i]);
 		  }
 		  if(files != NULL)

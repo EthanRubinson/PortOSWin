@@ -818,7 +818,6 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
 	if(use_existing_disk == 1) {
-		printf("herhd\n");
 		super_block = (superblock_t)malloc(sizeof(struct superblock));
 		protected_read(&filesystem, -1, super_block->padding);
 
@@ -833,7 +832,13 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 		current_working_directory = (inode_t)malloc(sizeof(struct inode));
 		root_directory = (inode_t)malloc(sizeof(struct inode));
 		protected_read(&filesystem,super_block->data.root,current_working_directory->padding);
+
+		printf("[DEBUG] Size of root %d\n", current_working_directory->data.size);
+		printf("[DEBUG] root type: %d \n", current_working_directory->data.type);
 		protected_read(&filesystem,super_block->data.root,root_directory->padding);
+		
+		current_working_directory->data.size = INT_MAX;
+		protected_write(&filesystem, super_block->data.root, root_directory->padding);
 	}
 	//Create the mainproc thread
 	minithread_fork(mainproc, mainarg);

@@ -102,6 +102,7 @@
     <ClCompile Include="miniroute.c" />
     <ClCompile Include="minisocket.c" />
     <ClCompile Include="minithread.c" />
+    <ClCompile Include="mkfs.c" />
     <ClCompile Include="multilevel_queue.c" />
     <ClCompile Include="network.c" />
     <ClCompile Include="network1.c" />

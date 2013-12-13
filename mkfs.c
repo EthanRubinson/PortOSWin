@@ -30,11 +30,13 @@ int thread(int* arg) {
 
 	for(i = 1; i < disk_size - 2; i++) {
 		memset(buffer, 0, DISK_BLOCK_SIZE);
-		sprintf(buffer, "%d", i + 1);
+		buffer[3] = (i>>24) & 0xff;
+		buffer[2] = (i>>16) & 0xff;
+		buffer[1] = (i>>8) & 0xff;
+		buffer[0] = i & 0xff;
 		protected_write(get_filesystem(), i, buffer);
 	}
 	memset(buffer, 0, DISK_BLOCK_SIZE);
-	sprintf(buffer, "lol");
 	disk_write_block(get_filesystem(), disk_size - 2, buffer);
 	disk_write_block(get_filesystem(), ceil(disk_size * 0.1) - 1, buffer);
 	// intialize first free data block to ceil(disk_size * 0.1)
