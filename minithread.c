@@ -723,6 +723,10 @@ void disk_handler(void* args){
 	semaphore_t wait;
 	sprintf(key, "%d", interrupt->request.blocknum);
 
+	if(interrupt->reply != DISK_REPLY_OK) {
+		printf("[HOUSTON] disk request failed \n");
+	}
+
 	if(interrupt->request.type == DISK_READ) {
 		if(hashtable_get(get_pending_reads(), key, (void**) &wait) != 0){
 			return;
@@ -737,7 +741,7 @@ void disk_handler(void* args){
 		}
 	}
 	
-	printf("[DEBUG] disk interrupt received \n");
+	//printf("[DEBUG] disk interrupt received \n");
 	set_interrupt_level(interrupt_level);
 }
 
@@ -818,17 +822,16 @@ void minithread_system_initialize(proc_t mainproc, arg_t mainarg) {
 	//Reset interrupt levels and begin program execution with the idle_proc
 	set_interrupt_level(ENABLED);
 	if(use_existing_disk == 1) {
-		printf("herhd\n");
 		super_block = (superblock_t)malloc(sizeof(struct superblock));
 		protected_read(&filesystem, -1, super_block->padding);
-
-		printf("[DEBUG] Super block metadata: \n");
-		printf("[DEBUG] Magic number: %d \n", super_block->data.magic_number);
-		printf("[DEBUG] next free data: %d \n", super_block->data.next_free_data_block);
-		printf("[DEBUG] next free inode: %d \n", super_block->data.next_free_inode);
-		printf("[DEBUG] root: %d \n", super_block->data.root);
-		printf("[DEBUG] size: %d \n", super_block->data.size_of_disk);
-
+		
+		printf("Super block metadata: \n");
+		printf("Magic number: %d \n", super_block->data.magic_number);
+		printf("next free data: %d \n", super_block->data.next_free_data_block);
+		printf("next free inode: %d \n", super_block->data.next_free_inode);
+		printf("root: %d \n", super_block->data.root);
+		printf("size: %d \n", super_block->data.size_of_disk);
+		
 		current_blocknum = 0;
 		current_working_directory = (inode_t)malloc(sizeof(struct inode));
 		root_directory = (inode_t)malloc(sizeof(struct inode));

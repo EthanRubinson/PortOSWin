@@ -30,6 +30,7 @@ int protected_read(disk_t* disk, int blocknum, char* buffer) {
 	disk_read_block(disk, blocknum, buffer);
 	semaphore_P(wait);
 	hashtable_remove(pending_reads,key);
+	semaphore_destroy(wait);
 }
 
 int protected_write(disk_t* disk, int blocknum, char* buffer) {
@@ -41,6 +42,7 @@ int protected_write(disk_t* disk, int blocknum, char* buffer) {
 	disk_write_block(disk, blocknum, buffer);
 	semaphore_P(wait);
 	hashtable_remove(pending_writes,key);
+	semaphore_destroy(wait);
 }
 
 // returns the first token before the slash
@@ -63,18 +65,22 @@ inode_t resolve_absolute_path(char* path, inode_t cwd, int get_file, unsigned in
 	inode_t resolved_path_inode = (inode_t) malloc(sizeof(struct inode));
 	data_block_t temp_data_block = (data_block_t) malloc(sizeof(struct data_block));
 	inode_t cwd_copy = (inode_t) malloc(sizeof(struct inode));
-
-	if(cwd->data.size == 0) {
+	memcpy(cwd_copy,cwd,sizeof(struct inode));
+	
+	if(cwd_copy->data.size == 0 && strlen(path) > 0) {
+		//printf("[DEBUG] size is 0 \n");
 		return NULL;
+	} else if (cwd_copy->data.size == 0 && strlen(path) == 0){
+		//printf("[DEBUG] returning cwd, no recursion \n");
+		return cwd_copy;
 	}
 
-	printf("[DEBUG] resolve absolute path entered \n");
-	memcpy(cwd_copy,cwd,sizeof(struct inode));
+	//printf("[DEBUG] resolve absolute path entered \n");
 	//free(cwd);
 
-	printf("[DEBUG] starting nested loops \n");
+	//printf("[DEBUG] starting nested loops \n");
 	// direct blocks
-	for(i = 0; i < ceil((double)cwd->data.size / (DISK_BLOCK_SIZE / (sizeof(struct item)))); i++) {
+	for(i = 0; i < ceil((double)cwd_copy->data.size / (DISK_BLOCK_SIZE / (sizeof(struct item)))); i++) {
 
 		// directory data block contents (items)
 		for(j = 0; j < DISK_BLOCK_SIZE / (sizeof(struct item)); j++) {
@@ -93,15 +99,11 @@ inode_t resolve_absolute_path(char* path, inode_t cwd, int get_file, unsigned in
 				}
 			}
 			else{
-				printf("[DEBUG] path has not been parsed completely, trying to read temp data block \n");
-				printf("direct block to read: %d, i = %d \n", cwd_copy->data.direct[i], i);
+				//printf("[DEBUG] path has not been parsed completely, trying to read temp data block \n");
 				protected_read(get_filesystem(),cwd_copy->data.direct[i],temp_data_block->padding);
-				if(temp_data_block == NULL) {
-					printf("temp data is null \n");
-				}
 				// item (match name)
 				if(0 == strcmp(temp_data_block->dir_contents.items[j].name, get_first_token(path))) {
-					printf("[DEBUG] match \n");
+					//printf("[DEBUG] match \n");
 					protected_read(get_filesystem(),temp_data_block->dir_contents.items[j].blocknum,resolved_path_inode->padding);
 					
 					*resolved_blocknum = temp_data_block->dir_contents.items[j].blocknum;
@@ -113,18 +115,18 @@ inode_t resolve_absolute_path(char* path, inode_t cwd, int get_file, unsigned in
 					return resolved_path_inode;
 				} 
 				else if (temp_data_block->dir_contents.items[j].blocknum ==  INT_MAX) {
-					printf("[DEBUG] placeholder entry \n");
+					//printf("[DEBUG] placeholder entry \n");
 					continue;
 				}
 				else if (temp_data_block->dir_contents.items[j].blocknum == 0) {
-					printf("[DEBUG] Path could not be resolved \n");
+					//printf("[DEBUG] Path could not be resolved \n");
 					free(temp_data_block);
 					free(cwd_copy);
 					free(resolved_path_inode);
 					return NULL;
 				}
 				else {
-					printf("[DEBUG] mismatch \n");
+					//printf("[DEBUG] mismatch \n");
 					continue;
 				}
 			}
@@ -138,13 +140,13 @@ inode_t resolve_relative_path(char* path, inode_t cwd, int get_file, unsigned in
 	inode_t resolved_path_inode = (inode_t) malloc(sizeof(struct inode));
 	data_block_t temp_data_block = (data_block_t) malloc(sizeof(struct data_block));
 	inode_t cwd_copy = (inode_t) malloc(sizeof(struct inode));
-
-	if(cwd->data.size == 0) {
-		return NULL;
-	}
-
 	memcpy(cwd_copy,cwd,sizeof(struct inode));
-	//free(cwd);
+	if(cwd_copy->data.size == 0 && strlen(path) > 0) {
+		//printf("[DEBUG] size is 0 \n");
+		return NULL;
+	} else if (cwd->data.size == 0 && strlen(path) == 0){
+		return cwd_copy;
+	}
 
 	// direct blocks
 	for(i = 0; i < DISK_BLOCK_SIZE - sizeof(type_t) - sizeof(size_t) - sizeof(data_block_t); i++) {
@@ -174,7 +176,7 @@ inode_t resolve_relative_path(char* path, inode_t cwd, int get_file, unsigned in
 					protected_read(get_filesystem(),temp_data_block->dir_contents.items[j].blocknum,resolved_path_inode->padding);
 					
 					*resolved_blocknum = temp_data_block->dir_contents.items[j].blocknum;
-					resolved_path_inode = resolve_absolute_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode, get_file, resolved_blocknum);
+					resolved_path_inode = resolve_relative_path(path += strlen(get_first_token(path)) + 1, resolved_path_inode, get_file, resolved_blocknum);
 					//path += strlen(get_first_token(path)) + 1;
 					//i = 0;
 					free(temp_data_block);
@@ -185,7 +187,7 @@ inode_t resolve_relative_path(char* path, inode_t cwd, int get_file, unsigned in
 					continue;
 				}
 				else if (temp_data_block->dir_contents.items[j].blocknum == 0) {
-					printf("[DEBUG] Path could not be resolved \n");
+					//printf("[DEBUG] Path could not be resolved \n");
 					free(temp_data_block);
 					free(cwd_copy);
 					free(resolved_path_inode);
@@ -202,28 +204,29 @@ inode_t resolve_relative_path(char* path, inode_t cwd, int get_file, unsigned in
 }
 
 minifile_t minifile_creat(char *filename){
-	printf("[DEBUG] Entered command: creat \n");
+	//printf("[DEBUG] Entered command: creat \n");
 	return NULL;
 }
 
 minifile_t minifile_open(char *filename, char *mode){
-	printf("[DEBUG] Entered command: open \n");
+	//printf("[DEBUG] Entered command: open \n");
 	return NULL;
 }
 
 int minifile_read(minifile_t file, char *data, int maxlen){
-	printf("[DEBUG] Entered command: read \n");
+	//printf("[DEBUG] Entered command: read \n");
 	return -1;
 }
 
 int minifile_write(minifile_t file, char *data, int len){
+	/*
 	char* temp_data = (char*) malloc(4096);
 	char key[5];
 	semaphore_t wait;
 	memset(temp_data, 0, 4096);
 	sprintf(key, "%d", -1);
 	sprintf(temp_data, "hahahaha");
-	printf("[DEBUG] Entered command: write \n");
+	//printf("[DEBUG] Entered command: write \n");
 	disk_write_block(get_filesystem(), 8, temp_data);
 
 	memset(temp_data, 0, 4096);
@@ -242,17 +245,18 @@ int minifile_write(minifile_t file, char *data, int len){
 
 	temp_data[30] = '\0';
 	printf(temp_data);
+	*/
 
-	return 0;
+	return -1;
 }
 
 int minifile_close(minifile_t file){
-	printf("[DEBUG] Entered command: close \n");
+	//printf("[DEBUG] Entered command: close \n");
 	return -1;
 }
 
 int minifile_unlink(char *filename){
-	printf("[DEBUG] Entered command: unlink \n");
+	//printf("[DEBUG] Entered command: unlink \n");
 	return -1;
 }
 
@@ -265,45 +269,56 @@ int minifile_mkdir(char *dirname){
 	char buffer[DISK_BLOCK_SIZE];
 	inode_t parent_dir = get_current_working_directory();
 	superblock_t super_block = get_superblock();
-	printf("[DEBUG] got superblock \n");
+	
+	if(strlen(dirname) == 0) {
+		printf("[ERROR] cannot create directory with empty name \n");
+		return -1;
+	}
+
 	for(i = 0; i < strlen(dirname); i++) {
-		if(dirname[i] == '/' || dirname[i] == '\\' || dirname[i] == ' ' || dirname[i] == '*') {
+		if(dirname[i] == '/' || dirname[i] == '\\' || dirname[i] == ' ' || dirname[i] == '*' || dirname[i] == ' ') {
 			printf("[ERROR] invalid directory name \n");
 			return -1;
 		}
 	}
-	printf("[DEBUG] resolving path, from curren dir: %p \n", get_current_working_directory());
+	//printf("[DEBUG] resolving path, from curren dir: %p \n", get_current_working_directory());
 	if(resolve_relative_path(dirname, get_current_working_directory(), 1, &temp) != NULL) {
 		printf("[INFO] Directory name already exists \n");
 		return -1;
 	}
-	printf("[DEBUG] path resolved \n");
+	//printf("[DEBUG] path resolved \n");
 	if(parent_dir->data.size == 0) {
-		printf("[DEBUG] parent dir has no entries \n");
+		//printf("[DEBUG] parent dir has no entries \n");
+		
 		free_block = super_block->data.next_free_data_block;
 		protected_read(get_filesystem(), free_block, buffer);
-		super_block->data.next_free_data_block = buffer[0] << 3 || buffer[1] << 2 || buffer[2] << 1 || buffer[3];
-		
+		//printf("[DEBUG] current free data block : %d \n", super_block->data.next_free_data_block);
+		super_block->data.next_free_data_block = ((buffer[3]) << 24) | ((buffer[2]) << 16) | ((buffer[1]) << 8) | buffer[0];
+		//printf("[DEBUG] next free data block : %d \n", super_block->data.next_free_data_block);
 		free_inode = super_block->data.next_free_inode;
+		//printf("[DEBUG] current free inode : %d \n", free_inode);
 		protected_read(get_filesystem(), free_inode, buffer);
-		super_block->data.next_free_inode = buffer[0] << 3 || buffer[1] << 2 || buffer[2] << 1 || buffer[3];
-		printf("[DEBUG] superblock modified \n");
+		super_block->data.next_free_inode = ((buffer[3]) << 24) | ((buffer[2]) << 16) | ((buffer[1]) << 8) | buffer[0];
+		//printf("[DEBUG] next free inode : %d \n", super_block->data.next_free_inode);
+		//printf("[DEBUG] superblock modified \n");
+		
 		protected_write(get_filesystem(), -1, super_block->padding);
-		parent_dir->data.direct[0] = free_block;
-		printf("[DEBUG] superblock written \n");
+		//printf("[DEBUG] superblock written \n");
+
+		parent_dir->data.direct[0] = free_block;		
 		memset(buffer, 0, DISK_BLOCK_SIZE);
 		memcpy(buffer, dirname, strlen(dirname) + 1);
 		((data_block_t) buffer)->dir_contents.items[0].blocknum = free_inode;
-		printf("[DEBUG] free data block modified \n");
+		//printf("[DEBUG] free data block modified \n");
 		protected_write(get_filesystem(), free_block, buffer);
-		printf("[DEBUG] data block written \n");
+		//printf("[DEBUG] data block written \n");
 		memset(buffer, 0, DISK_BLOCK_SIZE);
 
 		((inode_t) buffer)->data.type = INODE_DIR;
 		((inode_t) buffer)->data.size = 0;
-		printf("[DEBUG] free inode modified \n");
+		//printf("[DEBUG] free inode modified \n");
 		protected_write(get_filesystem(), free_inode, buffer);
-		printf("[DEBUG] inode written \n");
+		//printf("[DEBUG] inode written \n");
 
 		parent_dir->data.size++;
 		protected_write(get_filesystem(), get_current_blocknum(), parent_dir->padding);
@@ -322,7 +337,7 @@ int minifile_mkdir(char *dirname){
 
 					free_inode = super_block->data.next_free_inode;
 					protected_read(get_filesystem(), free_inode, buffer);
-					super_block->data.next_free_inode = buffer[0] << 3 || buffer[1] << 2 || buffer[2] << 1 || buffer[3];
+					super_block->data.next_free_inode = ((buffer[3]) << 24) | ((buffer[2]) << 16) | ((buffer[1]) << 8) | buffer[0];
 					protected_write(get_filesystem(), -1, super_block->padding);
 
 					memset(buffer, 0, DISK_BLOCK_SIZE);
@@ -343,12 +358,12 @@ int minifile_mkdir(char *dirname){
 }
 
 int minifile_rmdir(char *dirname){
-	printf("[DEBUG] Entered command: rmdir \n");
+	//printf("[DEBUG] Entered command: rmdir \n");
 	return -1;
 }
 
 int minifile_stat(char *path){
-	printf("[DEBUG] Entered command: stat \n");
+	//printf("[DEBUG] Entered command: stat \n");
 	return -1;
 } 
 
@@ -359,12 +374,21 @@ int minifile_cd(char *path){
 		returned_node = resolve_absolute_path(path+1, get_root_directory(), 0, &temp);
 	}
 	else{
-		returned_node = resolve_relative_path("lol", get_current_working_directory(), 0, &temp);
+		returned_node = resolve_relative_path(path, get_current_working_directory(), 0, &temp);
 	}
 	if(returned_node == NULL) {
 		printf("[INFO] directory not found \n");
 		return -1;
 	} else {
+		//printf("[DEBUG] returned node is not null \n");
+		if(path[0] == '/') {
+			memcpy(get_current_path(),path,strlen(path) + 1);
+		} else if (strlen(get_current_path()) == 1) {
+			memcpy(get_current_path() + strlen(get_current_path()), path, strlen(path) +1);
+		} else {
+			memcpy(get_current_path() + strlen(get_current_path()) + 1, path, strlen(path) +1);
+			get_current_path()[strlen(get_current_path())] = '/';
+		}
 		set_current_blocknum(temp);
 		set_current_working_directory(returned_node);
 		return 1;
@@ -378,20 +402,20 @@ char **minifile_ls(char *path){
 	char* *list;
 	int block_iter = 0;
 	int item_iter = 0;
-	printf("[DEBUG] ls command entered \n");
+	//printf("[DEBUG] ls command entered \n");
 	if(path[0] == '/'){
 		returned_node = resolve_absolute_path(path+1, get_root_directory(), 0, &temp);
 	}
 	else{
 		returned_node = resolve_relative_path(path, get_current_working_directory(), 0, &temp);
 	}
-	printf("[DEBUG] path resolved \n");
+	//printf("[DEBUG] path resolved \n");
 	if(returned_node == NULL){
 		list = (char* *)malloc(sizeof(char*));
 		list[0] = NULL;
 		return list;
 	}
-	printf("[DEBUG] inode found, size: %d\n", returned_node->data.size);
+	//printf("[DEBUG] inode found, size: %d\n", returned_node->data.size);
 	list = (char* *)malloc((returned_node->data.size + 1) * sizeof(char*));
 	list[returned_node->data.size] = NULL;
 
@@ -399,18 +423,18 @@ char **minifile_ls(char *path){
 		free(returned_node);
 		return list;
 	}
-	printf("[DEBUG] reading entries from block: %d \n", block_iter);
+	//printf("[DEBUG] reading entries from block: %d \n", block_iter);
 	protected_read(get_filesystem(),returned_node->data.direct[block_iter],buffer);
-	printf("[DEBUG] read direct block \n");
+	//printf("[DEBUG] read direct block \n");
 	block_iter++;
 	while(((data_block_t)buffer)->dir_contents.items[item_iter].blocknum != 0){
-		printf("[DEBUG] inside while \n");
+		//printf("[DEBUG] inside while \n");
 		if(((data_block_t)buffer)->dir_contents.items[item_iter].blocknum != INT_MAX){
-			printf("[DEBUG] inside if \n");
+			//printf("[DEBUG] inside if \n");
 			list[item_iter] = (char*)malloc(252);
 			memset(list[item_iter], 0, 252);
 			memcpy(list[item_iter], ((data_block_t)buffer)->dir_contents.items[item_iter].name, strlen(((data_block_t)buffer)->dir_contents.items[item_iter].name));
-			//printf("[DEBUG] item name: %s \n", ((data_block_t)buffer)->dir_contents.items[item_iter].name);
+			////printf("[DEBUG] item name: %s \n", ((data_block_t)buffer)->dir_contents.items[item_iter].name);
 		}
 		item_iter++;
 		if(item_iter == DISK_BLOCK_SIZE / sizeof(struct item)){
@@ -419,7 +443,7 @@ char **minifile_ls(char *path){
 			block_iter++;
 		}
 	}
-	printf("[DEBUG] ls complete \n");
+	//printf("[DEBUG] ls complete \n");
 	free(returned_node);
 	return list;
 }
